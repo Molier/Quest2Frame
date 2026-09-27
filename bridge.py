@@ -18,6 +18,7 @@ import urllib.parse
 import zipfile
 import paramiko
 from steam_shortcuts import upsert, app_id
+from storage import PROBE, select_storage, card_launcher
 
 APP = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 ROOT = APP
@@ -72,8 +73,8 @@ def write_json(path, value):
     temporary.write_text(json.dumps(value, indent=2), encoding='utf-8')
     temporary.replace(path)
 
-def launcher_text(base, ident, lepton):
-    return (ASSETS / 'launcher.sh').read_text(encoding='utf-8').replace('@APP_DIR@', shlex.quote(base)).replace('@APP_ID@', str(int(ident))).replace('@LEPTON@', shlex.quote(lepton))
+def launcher_text(base, ident, lepton, storage_setup=''):
+    return (ASSETS / 'launcher.sh').read_text(encoding='utf-8').replace('@APP_DIR@', shlex.quote(base)).replace('@APP_ID@', str(int(ident))).replace('@LEPTON@', shlex.quote(lepton)).replace('@STORAGE_SETUP@',storage_setup)
 
 class Bridge:
     def __init__(self, log=print):
@@ -251,7 +252,16 @@ class Bridge:
             except Exception as exc: self.log(f'Artwork {kind} unavailable: {exc}')
         return result
 
-    def install(self, folder, client, add_steam=True, artwork_id=None):
+    def storage_locations(self, client):
+        return json.loads(self.remote(client,'python3 -c '+shlex.quote(PROBE)))
+
+    def deployment_base(self, client, deployment):
+        uuid=deployment.get('storage_uuid','')
+        if not uuid:return deployment['remote']
+        choice=select_storage(self.storage_locations(client),'uuid:'+uuid)
+        return choice['mount']+'/Applications/quest-frame/'+valid_package(deployment['package'])
+
+    def install(self, folder, client, add_steam=True, artwork_id=None, storage_id='internal'):
         folder = Path(folder); game = json.loads((folder / 'game.json').read_text())
         package = valid_package(game['package']); backup = Path(game['backup'])
         obb_source = backup / 'obb'
@@ -265,25 +275,35 @@ class Bridge:
         ssh_key = self.remote(client, 'cat /etc/machine-id')
         if usb_key != ssh_key: raise RuntimeError('USB Frame and SSH Frame do not match')
         home = self.remote(client, 'printf %s "$HOME"')
-        base = home + '/Applications/quest-frame/' + package
+        storage=select_storage(self.storage_locations(client),storage_id)
+        anchor=home+'/Applications/quest-frame/'+package
+        base = storage['mount'] + '/Applications/quest-frame/' + package
         q = shlex.quote
-        launcher = base + '/launch.sh'; exe = '"' + launcher + '"'
+        launcher = anchor + '/launch.sh'; exe = '"' + launcher + '"'
         ident = app_id(exe, game['title'])
         # Existing IDs must survive title changes; use the previous deployment metadata.
-        old = self.remote(client, f'cat {q(base + "/deployment.json")}', check=False)
-        try: ident = int(json.loads(old)['appid'])
-        except (ValueError, KeyError): pass
+        old = self.remote(client, f'cat {q(anchor + "/deployment.json")}', check=False)
+        try: old_deployment=json.loads(old)
+        except ValueError: old_deployment={}
+        if old_deployment and old_deployment.get('storage_uuid','')!=storage['uuid']:
+            raise RuntimeError('Game already installed on a different storage device. Choose its existing location; moving existing games/saves is not supported automatically.')
+        if old_deployment.get('appid'):ident=int(old_deployment['appid'])
+        if storage['uuid'] and not old_deployment:
+            if self.remote(client,'test -d '+q(anchor+'/lepton-app')+' && echo EXISTS',check=False):
+                raise RuntimeError('Existing internal game found. Select internal storage to preserve its saves.')
         running = self.remote(client, f'podman ps --format "{{{{.Names}}}}"', check=False)
         if f'lepton-steamlaunch-{ident}' in running.splitlines():
             raise RuntimeError('Close this game on Frame before updating it. Other games will not be stopped.')
         lepton = home + '/.local/share/Steam/steamapps/common/Lepton/lepton'
         self.remote(client, f'test -x {q(lepton)}')
         required = (folder / 'game.apk').stat().st_size + sum(p.stat().st_size for p in obb_source.rglob('*') if p.is_file())
-        free = self.remote(client, 'df -Pk "$HOME" | tail -1').split()[3]
-        if int(free)*1024 < required*2 + 512*1024**2: raise RuntimeError('Not enough free space for safe staged deployment')
+        required += sum(p.stat().st_size for p in data_source.rglob('*') if p.is_file())
+        if storage['free'] < required*2 + 512*1024**2: raise RuntimeError('Not enough free space on selected storage for safe staged deployment')
         stamp = time.strftime('%Y%m%d-%H%M%S')
         stage = base + '/staging-' + stamp
-        self.remote(client, f'mkdir -p {q(stage + "/obb")} {q(base + "/lepton-data/external/Android/data/" + package + "/files")}')
+        if storage['uuid']:
+            self.remote(client,'mountpoint -q -- '+q(storage['mount']))
+        self.remote(client, f'mkdir -p {q(anchor)} {q(stage + "/obb")} {q(base + "/lepton-data/external/Android/data/" + package + "/files")}')
         self.log('Installing over USB ADB (APK + expansion data). Keep Frame connected…')
         self.adb_run('frame', 'push', '-Z', folder / 'game.apk', stage + '/game.apk')
         for file in obb_source.rglob('*'):
@@ -312,14 +332,15 @@ class Bridge:
         # Preserve all prior application and baked private data on updates.
         self.remote(client, f'if test -d {q(base + "/lepton-app")}; then mv {q(base + "/lepton-app")} {q(base + "/previous-app-" + stamp)}; fi; mv {q(stage)} {q(base + "/lepton-app")}')
         self.remote(client, f'if test -d {q(base + "/lepton-data/baked")}; then cp -a --reflink=auto {q(base + "/lepton-data/baked")} {q(base + "/previous-baked-" + stamp)}; fi')
-        script = launcher_text(base, ident, lepton)
+        script = launcher_text(base, ident, lepton,card_launcher(storage['uuid'],package) if storage['uuid'] else '')
         self.put_text(client, launcher, script)
         self.remote(client, 'chmod 755 ' + q(launcher))
-        write_json(folder / 'deployment.json', {'remote': base, 'appid': ident, 'package': package})
-        self.put_text(client, base + '/deployment.json', json.dumps({'appid': ident, 'package': package}))
+        deployment={'remote':base,'anchor':anchor,'appid':ident,'package':package,'storage_uuid':storage['uuid']}
+        write_json(folder / 'deployment.json',deployment)
+        self.put_text(client, anchor + '/deployment.json', json.dumps(deployment))
         if add_steam:
             arts = self.artwork(artwork_id or game['steam_id'], folder / 'artwork') if (artwork_id or game['steam_id']) else {}
-            self.add_shortcut(client, base, game['title'], ident, arts)
+            self.add_shortcut(client, anchor, game['title'], ident, arts)
         self.log('Installed. Launch from Steam; Lepton initializes the dedicated Android container on first launch.')
         return base, ident
 
@@ -373,9 +394,10 @@ class Bridge:
         folder = Path(folder)
         deployment = json.loads((folder / 'deployment.json').read_text())
         package = valid_package(deployment['package'])
-        path = deployment['remote'] + '/lepton-data/external/Android/data/' + package + '/files/framebridge.conf'
+        base=self.deployment_base(client,deployment)
+        path = base + '/lepton-data/external/Android/data/' + package + '/files/framebridge.conf'
         self.put_text(client, path, settings_text(scale, controllers, foveation))
-        self.put_text(client, deployment['remote'] + '/settings.conf', settings_text(scale, controllers, foveation))
+        self.put_text(client, base + '/settings.conf', settings_text(scale, controllers, foveation))
         game = json.loads((folder / 'game.json').read_text())
         game.update(scale=float(scale), controllers=bool(controllers), foveation=bool(foveation))
         write_json(folder / 'game.json', game)

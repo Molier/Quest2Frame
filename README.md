@@ -127,6 +127,12 @@ Click **Back up Quest game and convert**. Leave Quest connected until conversion
 
 Disconnect Quest, connect **Frame to the PC**, and keep it awake with Wi-Fi enabled. Choose whether to add the game to Steam, then click **Install on Frame**.
 
+Before installing, use **Refresh storage** and choose **Internal storage** or a detected **SD card / removable storage** destination. Each entry shows available space; no drive label is hard-coded. The card must already be mounted, writable, and formatted as ext4 or btrfs with execution allowed. The app does not format, mount, or change permissions on storage. Unsupported/read-only/noexec filesystems are omitted.
+
+On an SD install, APKs, expansion files, external saves, and per-game Lepton data/shaders live under `<detected mount>/Applications/quest-frame/<package>/`. A small launcher, deployment record, and Steam artwork remain internal to keep the shortcut stable. Steam/Lepton's shared runtime and system caches can still use internal storage. The launcher finds the card by filesystem UUID at each launch, so changing its label or mount directory does not require a new shortcut. Keep the card inserted during installation and play; missing storage produces an error rather than selecting internal storage instead.
+
+**Existing games are not automatically moved between drives.** Choose their current destination when updating. Switching an existing install to another drive is refused to avoid splitting saves or overwriting progress. An SD card must be mounted before launching a game. Reformatting changes its UUID and is not equivalent to renaming it.
+
 Files transfer over USB ADB; SSH configures the launcher and optional Steam shortcut/artwork. Adding the shortcut briefly closes and restarts Steam, so finish any active game first. Wait for completion before disconnecting USB.
 
 Open the new entry in Frame's Steam library. The first launch initializes its Lepton container and may take longer. Subsequent play does not require the PC.
@@ -140,6 +146,8 @@ Open the new entry in Frame's Steam library. The first launch initializes its Le
 3. Select the games to process and click **Back up & convert selected**. Keep the original Quest attached for the entire batch. Games run sequentially; failures are recorded individually and remaining games continue.
 4. If automatic artwork search is enabled on the main Convert tab, candidates are saved after each conversion. Select each row to review its candidates, choose the correct edition, and save. You can also enter a title and use **Find artwork by title** manually.
 5. Switch the USB connection to Frame, select ready rows, and click **Install selected ready games**. Each game keeps its own settings/artwork. With Steam integration enabled, Steam currently restarts **once per game**; finish active games first.
+
+The batch window has its own **Install location** selector and **Refresh storage** button. Its selected destination applies to that installation run. To split a batch across internal storage and SD, install one subset, change the destination, then install the remaining subset. Storage selection is not restored from queue files; refresh and select the intended destination after reopening a queue.
 
 Queues are automatically saved under `games/batches/` without SSH credentials. Use **Open batch / saved games** to reopen a queue after restarting the app. Cancel that file picker to create an empty queue, then use **Add saved conversions** to select existing `game.json` files. Duplicate packages are skipped.
 

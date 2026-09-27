@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 set -euo pipefail
 app_dir=@APP_DIR@
+@STORAGE_SETUP@
 export SteamAppId=@APP_ID@
 export STEAM_COMPAT_INSTALL_PATH="$app_dir/lepton-app"
 export STEAM_COMPAT_DATA_PATH="$app_dir/lepton-data"

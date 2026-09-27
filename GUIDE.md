@@ -25,6 +25,8 @@ The Frame adapter repairs the missing Android OpenXR instance extension. Optiona
 
 ## Files, safety, and limitations
 
+Single-game and batch install windows offer **Refresh storage** and an **Install location** dropdown. SD/removable storage is discovered from mounted devices and identified by filesystem UUID, not its label. Supported destinations are writable ext4/btrfs without `noexec`. Game files and per-game Lepton data go to the chosen drive; the stable Steam launcher and artwork stay internal. Existing games cannot silently move to another drive. See [installation instructions](README.md#3-install-and-play-on-frame) for details. No formatting or automatic mounting is performed.
+
 - `games/<package>/backup-*`: original Quest APK/data and backup metadata.
 - `games/<package>/build-*`: signed converted APK, manifest, hashes, artwork, and deployment metadata.
 - On Frame: `~/Applications/quest-frame/<package>/` with `launch.sh`, `lepton-app/`, `lepton-data/`, `settings.conf`, and `launch.log`.

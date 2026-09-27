@@ -6,8 +6,9 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from bridge import ROOT, write_json, settings_text, valid_package, artwork_candidates
+from storage_ui import StoragePicker
 
-def run_batch(items, action, bridge, serial, credentials, add_steam, save, auto_art=False):
+def run_batch(items, action, bridge, serial, credentials, add_steam, save, auto_art=False, storage_id='internal'):
     for index, item in enumerate(items, 1):
         bridge.log(f'Batch {index}/{len(items)}: {item["package"]} — {action}')
         item['error']=''
@@ -35,7 +36,7 @@ def run_batch(items, action, bridge, serial, credentials, add_steam, save, auto_
                 game.update({k:v for k,v in item['options'].items() if k!='title' or v.strip()})
                 write_json(folder/'game.json',game)
                 with bridge.connect(**credentials) as client:
-                    bridge.install(folder,client,add_steam,item['options']['steam_id'])
+                    bridge.install(folder,client,add_steam,item['options']['steam_id'],storage_id)
                 item['status']='Installed'
         except Exception as exc:
             item['status']='Failed';item['error']=str(exc)
@@ -46,7 +47,7 @@ def run_batch(items, action, bridge, serial, credentials, add_steam, save, auto_
 class BatchWindow(tk.Toplevel):
     def __init__(self, parent, packages=(), serial=None, path=None):
         super().__init__(parent);self.parent=parent;self.serial=serial
-        self.title('Quest → Frame — batch queue');self.geometry('1050x760');self.minsize(850,700)
+        self.title('Quest → Frame — batch queue');self.geometry('1050x800');self.minsize(850,740)
         self.path=Path(path) if path else ROOT/'games/batches'/f'{uuid.uuid4().hex}.json'
         defaults=parent.options();self.items=[];self.active=None
         if path:
@@ -82,6 +83,7 @@ class BatchWindow(tk.Toplevel):
         self.matches=ttk.Combobox(form,state='readonly',width=50);self.matches.grid(row=4,column=1,columnspan=2,sticky='ew')
         self.candidates=[];self.matches.bind('<<ComboboxSelected>>',self.choose_art)
         self.add_steam=tk.BooleanVar(value=parent.add_steam.get())
+        self.storage_picker=StoragePicker(box,parent);self.storage_picker.pack(fill='x',pady=8)
         ttk.Checkbutton(box,text='Add each installed game to Steam (Steam restarts for each game)',variable=self.add_steam).pack(anchor='w',pady=8)
         buttons=ttk.Frame(box);buttons.pack(fill='x')
         ttk.Button(buttons,text='Back up & convert selected',command=lambda:self.start('convert')).pack(side='left',padx=3)
@@ -156,10 +158,12 @@ class BatchWindow(tk.Toplevel):
         items=[i for i in items if (not i.get('build') if action=='convert' else i.get('build') and i['status']!='Installed')]
         if not items:self.message.set('Select unconverted games or ready builds; completed items are skipped.');return
         credentials=self.parent.credentials();add=self.add_steam.get();auto_art=self.parent.auto_art.get()
+        try:storage_id=self.storage_picker.selected_id()
+        except ValueError as exc:messagebox.showerror('Storage',str(exc),parent=self);return
         def work():
             if action=='convert':
                 if self.serial not in [s for s,_ in self.parent.bridge.quests()]:raise RuntimeError('Reconnect the original Quest and allow USB debugging.')
-            return run_batch(items,action,self.parent.bridge,self.serial,credentials,add,self.save,auto_art)
+            return run_batch(items,action,self.parent.bridge,self.serial,credentials,add,self.save,auto_art,storage_id)
         def done(result):
             failed=sum(i['status']=='Failed' for i in result)
             self.refresh();self.selected()

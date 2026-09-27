@@ -8,6 +8,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from bridge import APP, ROOT, Bridge, write_json, settings_text, artwork_candidates, suggested_title
+from storage_ui import StoragePicker
 
 class Wizard(tk.Tk):
     def __init__(self):
@@ -105,6 +106,7 @@ class Wizard(tk.Tk):
 
     def install_page(self):
         page=self.pages[3]
+        self.storage_picker=StoragePicker(page,self);self.storage_picker.pack(fill='x',pady=(0,8))
         self.ready=tk.StringVar(value='Convert a game first. You will be prompted to switch headsets.')
         ttk.Label(page,textvariable=self.ready,wraplength=740,style='Step.TLabel').pack(anchor='w',pady=(0,12))
         ttk.Label(page,text='Disconnect Quest. Connect Frame by USB, unlock it, and leave Wi-Fi on.\nThe SSH details from step 0 are used for setup; game files transfer over ADB.').pack(anchor='w')
@@ -256,12 +258,14 @@ class Wizard(tk.Tk):
         if not self.build:messagebox.showinfo('Convert first','Convert or reopen a game first.');return
         try:options=self.options()
         except ValueError:messagebox.showerror('Invalid scale','Enter a number between 50 and 200.');return
+        try:storage_id=self.storage_picker.selected_id()
+        except ValueError as exc:messagebox.showerror('Storage',str(exc));return
         credentials=self.credentials();folder=self.build;add=self.add_steam.get();art=self.vars['steam_id'].get()
         def work():
             game=json.loads((folder/'game.json').read_text())
             game.update({k:v for k,v in options.items() if k!='title' or v.strip()})
             write_json(folder/'game.json',game)
-            with self.bridge.connect(**credentials) as client:return self.bridge.install(folder,client,add,art)
+            with self.bridge.connect(**credentials) as client:return self.bridge.install(folder,client,add,art,storage_id)
         self.run_job('Installing on Frame…',work,lambda _:self.status.set('Installed. Launch the game from your Frame’s Steam library.'))
 
     def update_settings(self):
@@ -281,7 +285,7 @@ class Wizard(tk.Tk):
             deployment=json.loads((folder/'deployment.json').read_text())
             art=self.bridge.artwork(art_id,folder/'artwork') if art_id else {}
             with self.bridge.connect(**credentials) as client:
-                self.bridge.add_shortcut(client,deployment['remote'],game['title'],deployment['appid'],art)
+                self.bridge.add_shortcut(client,deployment.get('anchor',deployment['remote']),game['title'],deployment['appid'],art)
         self.run_job('Updating Steam shortcut…',work,lambda _:self.status.set('Steam shortcut and artwork updated.'))
 
     def close(self):
