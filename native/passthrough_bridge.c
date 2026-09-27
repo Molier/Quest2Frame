@@ -31,6 +31,8 @@ static Object objects[32];
 static uintptr_t sequence = 0x51324600;
 typedef struct { XrSession handle; int alpha; } Session;
 static Session sessions[8];
+typedef struct { XrSwapchain handle; XrSession session; uint32_t width,height; } Swapchain;
+static Swapchain swapchains[128];
 
 static void initialize(void) {
     Dl_info self;
@@ -47,6 +49,45 @@ static void initialize(void) {
 static PFN_xrVoidFunction resolve(const char *name) {
     pthread_once(&once, initialize);
     return library ? (PFN_xrVoidFunction)dlsym(library, name) : NULL;
+}
+XRAPI_ATTR XrResult XRAPI_CALL xrCreateSwapchain(XrSession session,const XrSwapchainCreateInfo *info,XrSwapchain *out) {
+    PFN_xrCreateSwapchain fn=(PFN_xrCreateSwapchain)resolve("xrCreateSwapchain");
+    if(!fn) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    XrResult r=fn(session,info,out);
+    if(XR_SUCCEEDED(r) && info && out) {
+        pthread_mutex_lock(&mutex);
+        for(size_t i=0;i<128;++i) if(!swapchains[i].handle) {
+            swapchains[i]=(Swapchain){*out,session,info->width,info->height};break;
+        }
+        pthread_mutex_unlock(&mutex);
+    }
+    return r;
+}
+XRAPI_ATTR XrResult XRAPI_CALL xrDestroySwapchain(XrSwapchain chain) {
+    PFN_xrDestroySwapchain fn=(PFN_xrDestroySwapchain)resolve("xrDestroySwapchain");
+    if(!fn) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    XrResult r=fn(chain);
+    if(XR_SUCCEEDED(r)) {
+        pthread_mutex_lock(&mutex);
+        for(size_t i=0;i<128;++i) if(swapchains[i].handle==chain) swapchains[i]=(Swapchain){0};
+        pthread_mutex_unlock(&mutex);
+    }
+    return r;
+}
+// OVRPlugin's symmetric-eye cropping can round offset and extent separately,
+// exceeding the texture edge by one or two pixels (including scaled targets).
+// Never conceal larger invalid regions.
+static int correct_rect(XrSession session,XrSwapchainSubImage *sub) {
+    int changed=0;
+    for(size_t i=0;i<128;++i) if(swapchains[i].handle==sub->swapchain && swapchains[i].session==session) {
+        XrRect2Di *r=&sub->imageRect;
+        int64_t dx=(int64_t)r->offset.x+r->extent.width-swapchains[i].width;
+        int64_t dy=(int64_t)r->offset.y+r->extent.height-swapchains[i].height;
+        if(r->offset.x>=0 && dx>0 && dx<=2 && r->extent.width>dx) {r->extent.width-=(int32_t)dx;changed=1;}
+        if(r->offset.y>=0 && dy>0 && dy<=2 && r->extent.height>dy) {r->extent.height-=(int32_t)dy;changed=1;}
+        break;
+    }
+    return changed;
 }
 static Object *find(uintptr_t handle, int kind) {
     for (size_t i=0;i<32;++i)
@@ -93,6 +134,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
         pthread_mutex_lock(&mutex);
         for(size_t i=0;i<32;++i) if(objects[i].session==session) objects[i]=(Object){0};
         for(size_t i=0;i<8;++i) if(sessions[i].handle==session) sessions[i]=(Session){0};
+        for(size_t i=0;i<128;++i) if(swapchains[i].session==session) swapchains[i]=(Swapchain){0};
         pthread_mutex_unlock(&mutex);
     }
     return r;
@@ -184,12 +226,35 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession session,const XrFrameEndInfo
     if(!fn || !info) return XR_ERROR_INITIALIZATION_FAILED;
     if(info->layerCount>64 || (info->layerCount && !info->layers)) return XR_ERROR_VALIDATION_FAILURE;
     const XrCompositionLayerBaseHeader *layers[64];
-    uint32_t count=0;int active=0,seen=0;
+    XrCompositionLayerProjection projections[64];
+    XrCompositionLayerProjectionView views[64][4];
+    XrCompositionLayerDepthInfoKHR depths[64][4];
+    uint32_t count=0;int active=0,seen=0,rects=0;
     pthread_mutex_lock(&mutex);
     for(uint32_t i=0;i<info->layerCount;++i) {
         const XrCompositionLayerBaseHeader *layer=info->layers[i];
         if(!layer) {pthread_mutex_unlock(&mutex);return XR_ERROR_LAYER_INVALID;}
-        if(layer->type!=XR_TYPE_COMPOSITION_LAYER_PASSTHROUGH_FB) {layers[count++]=layer;continue;}
+        if(layer->type!=XR_TYPE_COMPOSITION_LAYER_PASSTHROUGH_FB) {
+            if(layer->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION) {
+                const XrCompositionLayerProjection *p=(const void*)layer;
+                if(p->views && p->viewCount<=4) {
+                    projections[count]=*p;
+                    projections[count].views=views[count];
+                    for(uint32_t j=0;j<p->viewCount;++j) {
+                        views[count][j]=p->views[j];
+                        rects+=correct_rect(session,&views[count][j].subImage);
+                        const XrBaseInStructure *next=p->views[j].next;
+                        if(next && next->type==XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR) {
+                            depths[count][j]=*(const XrCompositionLayerDepthInfoKHR*)next;
+                            rects+=correct_rect(session,&depths[count][j].subImage);
+                            views[count][j].next=&depths[count][j];
+                        }
+                    }
+                    layer=(const void*)&projections[count];
+                }
+            }
+            layers[count++]=layer;continue;
+        }
         seen=1;
         const XrCompositionLayerPassthroughFB *pt=(const void *)layer;
         Object *p=find((uintptr_t)pt->layerHandle,2);
@@ -201,12 +266,26 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession session,const XrFrameEndInfo
             active=1;
         }
     }
+    if(rects) {static unsigned reports; if(reports++<4) LOG("corrected %d swapchain rectangle rounding overflows",rects);}
     pthread_mutex_unlock(&mutex);
-    if(!seen) return fn(session,info);
     XrFrameEndInfo fixed=*info;
     fixed.layerCount=count;fixed.layers=layers;
     if(active) fixed.environmentBlendMode=XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND;
-    XrResult r=fn(session,&fixed);
+    XrResult r=fn(session,seen || rects ? &fixed : info);
+    if(XR_FAILED(r)) {
+        pthread_mutex_lock(&mutex);
+        static unsigned errors;
+        if(errors++<4) for(uint32_t i=0;i<count;++i) if(layers[i]->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION) {
+            const XrCompositionLayerProjection *p=(const void*)layers[i];
+            for(uint32_t j=0;p->views && j<p->viewCount;++j) {
+                const XrSwapchainSubImage *sub=&p->views[j].subImage;
+                for(size_t k=0;k<128;++k) if(swapchains[k].handle==sub->swapchain)
+                    LOG("frame error=%d eye=%u rect=%d,%d %dx%d texture=%ux%u next=%d",r,j,sub->imageRect.offset.x,sub->imageRect.offset.y,sub->imageRect.extent.width,sub->imageRect.extent.height,swapchains[k].width,swapchains[k].height,p->views[j].next ? ((const XrBaseInStructure*)p->views[j].next)->type : 0);
+            }
+        }
+        pthread_mutex_unlock(&mutex);
+    }
+    if(!seen && !rects) return r;
     static int last=-999;
     int state=XR_FAILED(r) ? r : active;
     pthread_mutex_lock(&mutex);
@@ -221,6 +300,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance instance,const c
     if(!original) return XR_ERROR_INITIALIZATION_FAILED;
 #define HOOK(n) if(!strcmp(name,#n)) {*out=(PFN_xrVoidFunction)n;return XR_SUCCESS;}
     HOOK(xrGetInstanceProcAddr) HOOK(xrCreateSession) HOOK(xrDestroySession) HOOK(xrEndFrame)
+    HOOK(xrCreateSwapchain) HOOK(xrDestroySwapchain)
     HOOK(xrCreatePassthroughFB) HOOK(xrDestroyPassthroughFB) HOOK(xrPassthroughStartFB) HOOK(xrPassthroughPauseFB)
     HOOK(xrCreatePassthroughLayerFB) HOOK(xrDestroyPassthroughLayerFB)
     HOOK(xrPassthroughLayerResumeFB) HOOK(xrPassthroughLayerPauseFB) HOOK(xrPassthroughLayerSetStyleFB)

@@ -76,6 +76,27 @@ Triangle Strategy. Other games still require independent validation.
 game and restore the preserved original APK to `lepton-app/game.apk`, then
 relaunch. Do not treat removal of a log error as proof of working passthrough.
 
+## Vampire Survivors: image-rectangle compatibility
+
+The adapter also tracks swapchain dimensions and corrects a one- or two-pixel overflow
+in projection color/depth rectangles. During a live Vampire Survivors test,
+OVRPlugin submitted a right-eye offset of 366 plus a width of 2323 into a
+2688-pixel swapchain. OpenXR returned `XR_ERROR_SWAPCHAIN_RECT_INVALID`; Unity's
+XR display subsystem stopped while the input subsystem and game kept running,
+leaving SteamVR on "WAITING...". A fresh launch at 125% scale submitted offset
+471 plus width 2987 into a 3456-pixel texture: a two-pixel overflow. The hang
+also reproduced without the passthrough adapter.
+
+The correction copies the submitted structures, shortens only a one-pixel
+or two-pixel overrun, preserves caller memory, and leaves larger errors and unknown or
+other-session swapchains unchanged. Depth correction currently handles a depth
+structure at the head of the projection view's extension chain. Native tests
+cover the captured case, caller immutability, valid/larger rectangles, session
+ownership, and destroyed handles. A fresh launch of the fifth rectangle-fix
+build submits frames successfully, has no rectangle-validation errors, and
+keeps the main camera's stereo rendering enabled after menu initialization.
+The user confirmed that this build resolves the SteamVR "WAITING..." hang.
+
 ## References
 
 - [OVR Port patcher source](https://github.com/ovrport/app)
