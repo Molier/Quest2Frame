@@ -107,7 +107,7 @@ def main():
         else:
             profile=Path.home()/'.var/app/com.google.Chrome/config/quest2frame'
             process=subprocess.Popen(['flatpak','run','com.google.Chrome','--user-data-dir='+str(profile),
-                                      '--no-first-run','--no-default-browser-check','--window-size=1440,1000','--app='+url])
+                                      '--no-first-run','--no-default-browser-check','--window-size=1600,900','--app='+url])
             process.wait()
             # A transfer must survive accidental closing of the browser window.
             if engine.thread and engine.thread.is_alive():engine.thread.join()

@@ -16,6 +16,7 @@
   <main>
     <header><div class="breadcrumb">PERSONAL LIBRARY <span>/</span> <span id="page-label">QUEST</span></div><div id="device-pill" class="device-pill"><i></i> Waiting for Quest</div></header>
     <section class="page-heading"><div><div class="eyebrow" id="eyebrow">BRING YOUR GAMES WITH YOU</div><h1 id="page-title">From Quest.<br><span>At home on Frame.</span></h1><p id="page-description">Connect your Quest, choose a game, and make it yours on Frame.</p></div><button id="scan" class="button primary"><span>↻</span> Scan Quest</button></section>
+    <div id="workspace-scroll" tabindex="0" aria-label="Scrollable workspace">
     <section id="pending-banner" class="banner hidden"><div><strong>Your Steam library has updates</strong><p>Apply new games and artwork. Steam will restart and close this window.</p></div><button id="sync" class="button">Update Steam library ↗</button></section>
     <section id="error-banner" class="banner error hidden" role="alert"><div><strong>Let’s get this sorted</strong><p id="error-text"></p></div><button id="dismiss-error" class="icon-button" aria-label="Dismiss error">×</button></section>
     <section id="progress-panel" class="progress-panel hidden" aria-live="polite"><div class="progress-top"><strong id="progress-title">Preparing your game</strong><span id="percent">0%</span></div><div class="progress-track"><div id="progress-fill"></div></div><div class="steps"><span data-stage="backup">01 Back up</span><span data-stage="convert">02 Convert</span><span data-stage="configure">03 Configure</span><span data-stage="install">04 Install</span><span data-stage="artwork">05 Artwork</span></div><p id="progress-message"></p></section>
@@ -54,8 +55,13 @@
     </div>
     <section id="tools-panel" class="hidden"><div class="tools-grid"><article class="tool-card"><div class="tool-icon">↓</div><h2>Everything, in one place.</h2><p>Fetch checksum-verified ARM64 ADB, Java, and APK tools. Downloads stay in your home folder. No root access or SteamOS changes.</p><button id="setup" class="button primary">Set up / verify tools</button><p id="tool-status" class="hint"></p></article><article class="tool-card"><div class="tool-icon">⇄</div><h2>Connect with confidence.</h2><ol><li>Enable developer mode and USB debugging on Quest.</li><li>Connect Quest directly to Frame using a data-capable USB-C cable.</li><li>Put on Quest and accept the USB debugging prompt.</li><li>Return to this app and scan. A charge-only cable will not work.</li></ol><p class="hint">If nothing appears, reconnect the cable or try a powered USB-C hub. The app does not force USB role changes or install root permission rules.</p></article></div></section>
     <details class="activity"><summary><span>Activity log</span><span id="status-line">Ready when you are</span><span>⌄</span></summary><pre id="log" aria-label="Activity log"></pre></details>
+    </div>
   </main>
 </div>
 <dialog id="confirm-dialog"><div class="eyebrow">ONE LAST THING</div><h2>Refresh your Steam library?</h2><p>Steam will restart to safely add your games and artwork. This window will close. Your backups and installations are already saved.</p><div class="dialog-actions"><button id="confirm-cancel" class="button">Not yet</button><button id="confirm-sync" class="button primary">Restart &amp; apply</button></div></dialog>
 <dialog id="about-dialog"><div class="eyebrow">QUEST2FRAME · LOCAL EDITION</div><h2>Your games. Your hardware.</h2><p>Original project source is GPL-3.0-only, without warranty. You may copy, modify, and redistribute it under GPL version 3. External tools and libraries keep their own licenses. Game content and artwork are not covered.</p><p>See LICENSE and THIRD_PARTY_NOTICES.md in the installed app folder. Only use content you have the necessary rights to use.</p><button id="about-close" class="button primary">Got it</button></dialog>
+<nav class="page-scroll" aria-label="Page scrolling">
+  <button id="scroll-up" type="button" aria-label="Scroll page up" title="Scroll page up"><span aria-hidden="true">&#9650;</span><small>UP</small></button>
+  <button id="scroll-down" type="button" aria-label="Scroll page down" title="Scroll page down"><span aria-hidden="true">&#9660;</span><small>DOWN</small></button>
+</nav>
 <script src="/app.js"></script></body></html>
