@@ -1,0 +1,132 @@
+{
+  "debian": [
+    {
+      "name": "zipalign",
+      "version": "1:10.0.0+r36-1",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-build/zipalign_10.0.0+r36-1_arm64.deb",
+      "sha256": "51a72c132ce2d61839112a7edb1f20cefedff186b427edad6f4cd535cc497ea6"
+    },
+    {
+      "name": "android-libboringssl",
+      "version": "13.0.0+r24-2",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-external-boringssl/android-libboringssl_13.0.0+r24-2_arm64.deb",
+      "sha256": "b7604d234939abbd7bf4eecd3f857dfbe018bf62c60c50690fb09abb762503fc"
+    },
+    {
+      "name": "aapt",
+      "version": "1:10.0.0+r36-10",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-frameworks-base/aapt_10.0.0+r36-10_arm64.deb",
+      "sha256": "ec2d2e6ae414ac6eae52626e74715af5d7402f4b24f329c94f706934a15034fb"
+    },
+    {
+      "name": "android-libaapt",
+      "version": "1:10.0.0+r36-10",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-frameworks-base/android-libaapt_10.0.0+r36-10_arm64.deb",
+      "sha256": "a784a933ce7219920116a23badae2dfb6373c3c252c699654ff7756f936579c2"
+    },
+    {
+      "name": "android-libandroidfw",
+      "version": "1:10.0.0+r36-10",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-frameworks-base/android-libandroidfw_10.0.0+r36-10_arm64.deb",
+      "sha256": "3833d44f55b1c63b985455ada8f08dc15a7a0cca7f22ebf11096515a9dd29a4b"
+    },
+    {
+      "name": "adb",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/adb_29.0.6-28_arm64.deb",
+      "sha256": "878e7c045cc921acefb7634fda4d6042eec5c7a69b7fb62cb89d23979030daf1"
+    },
+    {
+      "name": "android-libbacktrace",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/android-libbacktrace_29.0.6-28_arm64.deb",
+      "sha256": "354de7435e9d4c52b2db26648629c8768fa9b88df61b430f87bfc204d7cb446f"
+    },
+    {
+      "name": "android-libbase",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/android-libbase_29.0.6-28_arm64.deb",
+      "sha256": "cae49d095f25ab9fbadf2c062123885e87ac5bf861e2ab415510e5b60575decd"
+    },
+    {
+      "name": "android-libcutils",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/android-libcutils_29.0.6-28_arm64.deb",
+      "sha256": "ac1565d9f4b4c1c8a3e50d577e785086856c8928089e0bb857adb9a5c52e4839"
+    },
+    {
+      "name": "android-liblog",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/android-liblog_29.0.6-28_arm64.deb",
+      "sha256": "d21c4868a3118dd24feb5b7f82b7e1eaaf3c85544a1f26cd94fb0f9d9def9108"
+    },
+    {
+      "name": "android-libutils",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/android-libutils_29.0.6-28_arm64.deb",
+      "sha256": "22148b383dd323d9d431571eb94247c7aef07c9503f9c0f8e2af4d553892d8bf"
+    },
+    {
+      "name": "android-libziparchive",
+      "version": "1:29.0.6-28",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools/android-libziparchive_29.0.6-28_arm64.deb",
+      "sha256": "bcec60dac69fa6bd1a1124a78ae1a8aeec5e95ef4ea2cda27960bfe753664cc4"
+    },
+    {
+      "name": "apksigner",
+      "version": "31.0.2-1",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools-apksig/apksigner_31.0.2-1_all.deb",
+      "sha256": "6ded96d6156f8b0bc1355e87b5fad8e6ebfcf8a694dedd9987768b37a41878d4"
+    },
+    {
+      "name": "libapksig-java",
+      "version": "31.0.2-1",
+      "url": "https://deb.debian.org/debian/pool/main/a/android-platform-tools-apksig/libapksig-java_31.0.2-1_all.deb",
+      "sha256": "cfb1babb843de0c7490c4554dca31187ceb326ea7f53c9cd77e9ce46342cba59"
+    },
+    {
+      "name": "libbsd0",
+      "version": "0.11.7-2",
+      "url": "https://deb.debian.org/debian/pool/main/libb/libbsd/libbsd0_0.11.7-2_arm64.deb",
+      "sha256": "ef00f132ddd268ee67d756998723ee18543db27ab34930c0a9f1cff75cf55382"
+    },
+    {
+      "name": "libmd0",
+      "version": "1.0.4-2",
+      "url": "https://deb.debian.org/debian/pool/main/libm/libmd/libmd0_1.0.4-2_arm64.deb",
+      "sha256": "99a8c7dd591fae9fb37d8bf8dfdffa850e207fa405b3198c5b24711a5f972381"
+    },
+    {
+      "name": "p7zip",
+      "version": "16.02+really26.01+dfsg-0+deb12u1",
+      "url": "https://deb.debian.org/debian/pool/main/p/p7zip/p7zip_16.02+really26.01+dfsg-0+deb12u1_arm64.deb",
+      "sha256": "9ec323ee2f9540d084d386d7b099aa50cbc88c8e79af2ad370bed93133ce68e2"
+    },
+    {
+      "name": "p7zip-full",
+      "version": "16.02+really26.01+dfsg-0+deb12u1",
+      "url": "https://deb.debian.org/debian/pool/main/p/p7zip/p7zip-full_16.02+really26.01+dfsg-0+deb12u1_arm64.deb",
+      "sha256": "4505bf77bc4bf430cc6ab00f1a63064f4ea70cb575008db7fe107f167ac3b5b0"
+    },
+    {
+      "name": "libprotobuf-lite32",
+      "version": "3.21.12-3+deb12u1",
+      "url": "https://deb.debian.org/debian/pool/main/p/protobuf/libprotobuf-lite32_3.21.12-3+deb12u1_arm64.deb",
+      "sha256": "c854436ba2ebc40976fda685252908deeb6d41ce6a79e2b42d501ae8f6bcce1c"
+    },
+    {
+      "name": "libzopfli1",
+      "version": "1.0.3-1",
+      "url": "https://deb.debian.org/debian/pool/main/z/zopfli/libzopfli1_1.0.3-1_arm64.deb",
+      "sha256": "439b03d8369fb65de4b81cdb354562cdf7f8da271bebf026bd83e03bdf195f21"
+    }
+  ],
+  "java": {
+    "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+    "sha256": "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2"
+  },
+  "ovrport": {
+    "url": "https://github.com/ovrport/app/releases/download/1.2.3/cli-jar.zip",
+    "sha256": "3239408ff1e97ad016916825c216dc3016c0ffa7db7c317221ed3f1244441594"
+  }
+}
