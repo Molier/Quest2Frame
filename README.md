@@ -2,7 +2,160 @@
 
 A Windows wizard for backing up a locally connected Quest game, converting it with an independently installed OVR Port CLI, and deploying it to Steam Frame over ADB and SSH. Includes per-game OpenXR resolution controls and optional Steam shortcuts/artwork.
 
-See [the app guide](GUIDE.md) for the workflow and limitations.
+This is the **Windows source edition**, not a ready-to-run installer. Connect each headset to your **PC**, one at a time; do not connect Quest directly to Frame for this workflow. See [GUIDE.md](GUIDE.md) for additional safety and recovery details.
+
+## Installation
+
+### PC prerequisites
+
+- Windows x64, data-capable USB cables, and enough disk space for original games, conversion intermediates, and backups.
+- Python 3.11 or newer with pip and Tcl/Tk (tested locally with Python 3.13). Check with `python --version` and `python -m tkinter`; close the Tk test window afterward.
+- Git if cloning, or download and extract the repository ZIP. This private repository requires GitHub access.
+- Android SDK Platform-Tools (ADB), Build-Tools **35.0.0**, and NDK (Side by side) **25.2.9519653**. Select these in Android Studio's SDK Manager, under SDK Tools with package details enabled. See [Google's SDK Manager instructions](https://developer.android.com/studio/intro/update#sdk-manager).
+- Java **21**, Windows x64 ZIP distribution, such as the [Temurin 21 JDK](https://adoptium.net/temurin/releases/?version=21).
+- The CLI distribution from [OVR Port 1.2.3](https://github.com/ovrport/app/releases/tag/1.2.3), containing `overportcli-1.2.3-all.jar`. That spelling is intentional; the GUI or Android APK is not a substitute.
+
+Keep the PC and Frame on the same trusted network for SSH. Internet access is needed for dependency/runtime downloads and optional artwork.
+
+### Download and prepare the source
+
+Open PowerShell in a writable folder:
+
+```powershell
+git clone https://github.com/MichaelScottsman/Quest2Frame.git
+cd Quest2Frame
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Extract the Java ZIP under `tools/java21/`, preserving its single JDK directory. Extract/copy the CLI JAR into `tools/ovrport-cli/`. The app requires these exact locations; setting `JAVA_HOME` or installing Java elsewhere is not enough.
+
+```text
+Quest2Frame/
+  app.py
+  Launch.cmd
+  native/
+    frame_bridge.c
+  tools/
+    java21/
+      <extracted-jdk-directory>/
+        bin/java.exe
+    ovrport-cli/
+      overportcli-1.2.3-all.jar
+```
+
+The default Android SDK location is `%LOCALAPPDATA%\Android\Sdk`. Build the compatibility adapter from the repository root:
+
+```powershell
+.\build-native.ps1
+```
+
+For a non-default SDK location, set these variables in the PowerShell window used to launch the app:
+
+```powershell
+$env:ANDROID_SDK_ROOT = 'D:\Android\Sdk'
+$env:PATH = "$env:ANDROID_SDK_ROOT\platform-tools;$env:PATH"
+.\build-native.ps1 -Sdk $env:ANDROID_SDK_ROOT
+```
+
+ADB discovery uses PATH first, then the default SDK location. Setting `ANDROID_SDK_ROOT` alone does not change ADB discovery. The build script fetches checksum-verified OpenXR headers and creates `native/libopenxr_loader_generic.so`. If PowerShell blocks a downloaded script, review it and use `Unblock-File .\build-native.ps1`; organization policy may require administrator assistance. Do not disable system-wide security settings.
+
+OVR Port downloads its runtime during conversion; the app requests version `3.4.3-23204ea`. Its workspace and signing keys are stored under `tools/ovrport-workspace/`. These files are not included in Git.
+
+## Headset prerequisites: developer mode and ADB
+
+### Quest
+
+1. Complete Meta's developer-account requirements and enable Developer Mode for your headset using the paired Meta Horizon mobile app. Follow [Meta's device setup instructions](https://developers.meta.com/horizon/documentation/native/android/mobile-device-setup/), including the Windows Oculus ADB driver installation.
+2. Connect Quest to the PC with a **data** cable, put on the headset, and unlock it.
+3. Accept the USB-debugging authorization prompt. Remember the computer only if you trust it. A file-access prompt is not the same as debugging authorization.
+4. Verify that ADB lists the Quest serial with status `device`, not `unauthorized` or `offline`:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices -l
+```
+
+Use `adb devices -l` if ADB is on PATH. Authorization is per computer; approving another PC does not authorize this one. Disconnect Quest after checking it so you can prepare Frame.
+
+### Steam Frame
+
+1. Open **Steam Settings > System** on Frame and enable Developer Mode.
+2. Open the **Developer** settings section and choose **Set User Password**. Set your own password; the app does not supply one. See [Valve's Frame development setup](https://partner.steamgames.com/doc/steamhardware/steamframe/setup).
+3. Connect Frame to the PC by USB. Run `adb devices -l`. This app expects the native Linux USB ADB connection, identified as `frame`, with status `device`.
+4. Leave Frame's Wi-Fi enabled. Note its hostname or Wi-Fi IP address and ensure the PC can reach it over SSH. The app defaults to host `frame`, user `steamos`, and port `22`; enter the password you set above.
+5. Keep Frame attached for the app's first SSH connection. It verifies the network host key against the public key read over physical USB before trusting it.
+
+**Native Frame ADB and Lepton ADB are different.** USB normally reaches Frame's Linux OS. A running Lepton Android container is accessed separately on TCP port 5555; see [Valve's Lepton ADB guide](https://partner.steamgames.com/doc/steamhardware/steamframe/adb_lepton). Do not substitute `localhost:5555` or an emulator for `frame` in this wizard. You do not need to start Lepton Development or manually forward port 5555 for this workflow: the generated game launcher handles its dedicated Lepton environment.
+
+Frame must have Steam and Lepton available. This version expects a single Steam user profile. Developer mode exposes debugging services; use a trusted network and disable services later if no longer needed.
+
+## Running the app
+
+From the repository root, launch with the virtual environment created above:
+
+```powershell
+.\.venv\Scripts\python.exe app.py
+```
+
+Use that command each time. Alternatively, install dependencies into your normal Python with `python -m pip install -r requirements.txt`, then run `python app.py` or double-click `Launch.cmd`. **Launch.cmd uses pythonw on PATH; it does not automatically select .venv.** No prebuilt executable is supplied by this repository.
+
+If the window immediately closes, launch from PowerShell to see the error.
+
+## Transfer a game: step by step
+
+### 0. Configure Frame
+
+With **Frame connected to the PC**, enter its hostname/IP, SSH port, username, and password in **Frame setup**. Click **Test SSH and save connection details**. Only non-secret connection details are saved; the password stays in memory. Unknown or changed SSH host keys are not silently accepted.
+
+After the test succeeds, disconnect Frame and connect Quest to the PC.
+
+### 1. Select a Quest game
+
+Unlock Quest and authorize debugging if prompted. Click **Scan Quest and list installed packages**, filter the list, select a package, and click **Use selected game**.
+
+### 2. Back up and convert
+
+Choose a library title and resolution scale (50–200%; start at 100%). Leave physical-controller compatibility enabled for controller games; disable it for hand-tracking games. The foveation option disables an unsupported Quest rendering path.
+
+Optionally enter the matching game's **Steam App ID** to fetch artwork. This Windows app uses the ID you provide; it does not automatically search by title. Find the ID in a Steam store URL's `/app/<number>/` portion.
+
+Click **Back up Quest game and convert**. Leave Quest connected until conversion completes. The app copies the original APK, expansion files, and accessible external saves, runs OVR Port, applies the adapter, aligns/signs the APK, and verifies its signature. Original Quest files are not modified.
+
+### 3. Install and play on Frame
+
+Disconnect Quest, connect **Frame to the PC**, and keep it awake with Wi-Fi enabled. Choose whether to add the game to Steam, then click **Install on Frame**.
+
+Files transfer over USB ADB; SSH configures the launcher and optional Steam shortcut/artwork. Adding the shortcut briefly closes and restarts Steam, so finish any active game first. Wait for completion before disconnecting USB.
+
+Open the new entry in Frame's Steam library. The first launch initializes its Lepton container and may take longer. Subsequent play does not require the PC.
+
+## Change settings or resume later
+
+Use **Open a previously converted game** and select `games/<package>/build-.../game.json`.
+
+- Change resolution/controller options on step 2, then select **Apply resolution / compatibility settings only** on step 3. Restart the game afterward. With a verified host key, this needs SSH but not USB or a rebuild.
+- Select **Add / repair Steam shortcut only** to retry library integration.
+- Reconnect Frame over USB and select **Install on Frame** to reinstall the saved build.
+
+Back up `games/` and `tools/ovrport-workspace/signatures/`. Existing external Frame saves are not overwritten with older Quest saves; app updates retain snapshots of replaced app/baked data. See [GUIDE.md](GUIDE.md) for details.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| No headset in ADB | Data cable, PC USB port, headset awake, developer mode, and the appropriate Windows ADB driver. |
+| Quest is `unauthorized` | Put on Quest and accept USB debugging; reconnect if the prompt is not visible. |
+| Only an emulator or `localhost:5555` appears | Connect Frame to the PC over USB and check for its native `frame` connection. |
+| SSH cannot resolve `frame` | Use Frame's Wi-Fi IP. Ensure the PC can reach it and the network does not isolate clients. |
+| SSH authentication fails | Check developer mode, user `steamos`, and your user password from Frame's Developer settings. |
+| First SSH connection needs verification | Attach Frame by USB. Do not bypass a changed-host-key warning without verifying the device. |
+| Java/OVR Port missing | Check the exact tools layout, JDK subdirectory, and JAR filename above. |
+| SDK tool or adapter missing | Install Build-Tools/NDK, check SDK paths, and run `build-native.ps1`. |
+| Converted game fails | Compatibility varies; split APKs, DRM/platform services, and unusual rendering/input paths may not work. |
+
+Only single-APK ARM64 games are supported. Protected/private Quest saves may not transfer. Resolution scales recommended width **and** height; 150% is roughly 2.25 times the pixels, and a game may ignore the recommendation. Do not run multiple conversions simultaneously.
+
+Tests with the virtual environment: `.\.venv\Scripts\python.exe -m unittest discover -s . -v`. Private-fixture tests skip on a fresh clone. These instructions were checked against the implementation; a clean-machine installation has not been tested.
 
 ## Source-only repository
 
