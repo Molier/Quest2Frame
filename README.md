@@ -4,8 +4,6 @@ A Windows wizard for backing up a locally connected Quest game, converting it wi
 
 See [the app guide](quest-frame-app/README.md) for the workflow and limitations.
 
-The [quest2frame native edition](quest2frame/README.md) runs directly on Steam Frame (Linux ARM64), with a large-format VR-workspace interface, private tool bootstrap, direct USB Quest backup/conversion, per-game settings, and automatic Steam artwork matching.
-
 ## Source-only repository
 
 This repository contains our Python/C/shell source and documentation. It does **not** distribute Quest games, patched APKs, game saves, Steam artwork, signing keys, device configuration, downloaded OVR Port binaries, Android SDK/NDK, Java, Lepton, or the locally built Windows executable. `.gitignore` protects these local files without deleting them.

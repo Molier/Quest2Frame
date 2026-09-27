@@ -31,7 +31,6 @@ dist/
 /quest-frame-app/ui-check.png
 /quest-frame-app/VERIFICATION.md
 /quest-frame-app/native/include/
-/quest2frame/.local/
-/quest2frame/shared/
-/quest2frame/native/
+# Native Frame edition is local-only; this repository publishes the Windows app.
+/quest2frame/
 /.playwright-mcp/
