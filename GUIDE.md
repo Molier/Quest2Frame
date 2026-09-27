@@ -1,6 +1,6 @@
 # Quest → Frame
 
-In the configured local workspace, launch **QuestToFrame.exe** in this folder. Keep it here, alongside `../tools` and `../games`. The executable and those private/tool folders are not committed to Git. A fresh clone contains source only.
+Launch `Launch.cmd` or run `python app.py` from the repository root. Local `tools/` and `games/` directories sit alongside `app.py`. Executables and those private/tool folders are not committed to Git. A fresh clone contains source only. An executable built for the old nested layout must be rebuilt before moving it to this root layout.
 
 ## Workflow
 
@@ -36,10 +36,10 @@ The Frame adapter repairs the missing Android OpenXR instance extension. Optiona
 
 The executable bundles Python, Tk, Paramiko, and the precompiled ARM64 Frame adapter. Conversion reuses this workspace's Java 21, OVR Port CLI 1.2.3, pinned experimental OVR Port libraries `3.4.3-23204ea`, and Android SDK build-tools from `%LOCALAPPDATA%/Android/Sdk` (or `ANDROID_SDK_ROOT`). ADB must be on PATH or in the SDK's platform-tools directory. This is a working app for this configured PC, not a standalone redistribution of those external tools.
 
-Source launch: `python -m pip install -r requirements.txt`, then `python app.py` (or `Launch.cmd`). Tests: `python -m unittest discover -s quest-frame-app -v` from the workspace root.
+Source launch: `python -m pip install -r requirements.txt`, then `python app.py` (or `Launch.cmd`). Tests: `python -m unittest discover -s . -v` from the repository root.
 
-The native source is `native/frame_bridge.c`. Run `./quest-frame-app/build-native.ps1` from the workspace root to fetch hash-verified OpenXR headers from a pinned revision and build the adapter using Android NDK. The `.so` and downloaded headers are ignored by Git. Rebuild the `.so` after changing its source. The build selects the headers' MIT license alternative and preserves their notices.
+The native source is `native/frame_bridge.c`. Run `./build-native.ps1` from the repository root to fetch hash-verified OpenXR headers from a pinned revision and build the adapter using Android NDK. The `.so` and downloaded headers are ignored by Git. Rebuild the `.so` after changing its source. The build selects the headers' MIT license alternative and preserves their notices.
 
-Original project source is **GPL-3.0-only**, without warranty. See [LICENSE](../LICENSE) and [third-party notices](../THIRD_PARTY_NOTICES.md). OVR Port, Paramiko, SDK tools, runtime libraries, game content, and artwork retain their own licensing. Do not distribute the local EXE, runtime bundle, or converted APKs on the assumption that this repository's license covers them.
+Original project source is **GPL-3.0-only**, without warranty. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). OVR Port, Paramiko, SDK tools, runtime libraries, game content, and artwork retain their own licensing. Do not distribute the local EXE, runtime bundle, or converted APKs on the assumption that this repository's license covers them.
 
 References: [OVR Port](https://github.com/ovrport/app), [Valve Lepton ADB guide](https://partner.steamgames.com/doc/steamhardware/steamframe/adb_lepton). Steam artwork is fetched from Valve's CDN for the App ID you enter.

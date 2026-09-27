@@ -27,7 +27,7 @@ class Tests(unittest.TestCase):
     def test_reject_unknown_type(self):
         with self.assertRaises(ValueError):decode(b'\x05key\0value\0\x08')
     def test_real_shortcuts(self):
-        path=Path(__file__).resolve().parent.parent/'tools/frame-shortcuts-original.vdf'
+        path=Path(__file__).resolve().parent/'tools/frame-shortcuts-original.vdf'
         if not path.exists():self.skipTest('No local Steam fixture')
         value=decode(path.read_bytes());self.assertEqual(decode(encode(value)),value)
     def test_quest_detection_excludes_lepton_and_host(self):
@@ -48,7 +48,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(bridge.packages('quest'),['com.a.game','com.z.game'])
     def test_apk_signature_and_adapter(self):
         import zipfile,json
-        builds=list((Path(__file__).resolve().parent.parent/'games').glob('*/build-*/game.json'))
+        builds=list((Path(__file__).resolve().parent/'games').glob('*/build-*/game.json'))
         if not builds:self.skipTest('No converted APK fixture')
         folder=builds[-1].parent
         with zipfile.ZipFile(folder/'game.apk') as apk:

@@ -25,12 +25,14 @@ dist/
 *.spec
 .env
 .env.*
-/quest-frame-app/known_hosts
-/quest-frame-app/settings.json
-/quest-frame-app/artwork-test/
-/quest-frame-app/ui-check.png
-/quest-frame-app/VERIFICATION.md
-/quest-frame-app/native/include/
+/known_hosts
+/settings.json
+/artwork-test/
+/ui-check.png
+/VERIFICATION.md
+/native/include/
+# Retained private files from the former local app layout.
+/quest-frame-app/
 # Native Frame edition is local-only; this repository publishes the Windows app.
 /quest2frame/
 /.playwright-mcp/

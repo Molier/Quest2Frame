@@ -18,7 +18,7 @@ import paramiko
 from steam_shortcuts import upsert, app_id
 
 APP = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
-ROOT = APP.parent
+ROOT = APP
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 LIB_VERSION = '3.4.3-23204ea'
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
@@ -144,7 +144,7 @@ class Bridge:
             if not clang: raise RuntimeError('Missing bundled adapter and Android NDK compiler')
             include = ASSETS / 'native/include'
             if not (include / 'openxr/openxr.h').exists():
-                raise RuntimeError('Run quest-frame-app/build-native.ps1 to obtain verified OpenXR headers and build the adapter.')
+                raise RuntimeError('Run build-native.ps1 to obtain verified OpenXR headers and build the adapter.')
             self.run([clang, '--target=aarch64-linux-android29', f'--sysroot={clang.parent.parent / "sysroot"}',
                       '-shared', '-fPIC', '-O2', '-Wall', '-Wextra', '-Werror', '-Wl,-Bsymbolic',
                       '-Wl,-soname,libopenxr_loader_generic.so', '-I', include,

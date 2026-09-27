@@ -21,7 +21,7 @@ foreach ($name in $headers.Keys) {
     }
 }
 # Header copyright notices are preserved; we use the MIT alternative of their
-# Apache-2.0 OR MIT grant. See ../LICENSES/OpenXR-MIT.txt.
+# Apache-2.0 OR MIT grant. See LICENSES/OpenXR-MIT.txt.
 $toolchain = Join-Path $Sdk "ndk\$NdkVersion\toolchains\llvm\prebuilt\windows-x86_64"
 $clang = Join-Path $toolchain 'bin\clang.exe'
 if (-not (Test-Path -LiteralPath $clang)) { throw "Install Android NDK $NdkVersion or pass -Sdk / -NdkVersion." }
