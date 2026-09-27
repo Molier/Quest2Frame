@@ -4,6 +4,8 @@ Launch `Launch.cmd` or run `python app.py` from the repository root. Local `tool
 
 ## Workflow
 
+For multiple games, Ctrl/Shift-select packages and choose **Use selected game(s)**. The batch queue supports per-game settings and artwork, sequential conversion/installation, saved progress, and retrying failed entries. See the [batch instructions](README.md#multiple-games--batch-queue). Keep Quest connected until all requested conversions finish, then switch to Frame. Steam integration currently restarts Steam for each installed game.
+
 0. Enter your Frame SSH host (default `frame`), port, username (`steamos`), and password. Test the connection. Only host/port/username are saved; the password stays in memory. On first connection, attach Frame over USB so the app can verify its SSH host key. Unknown or changed keys are never silently accepted.
 1. Plug in Quest, unlock it, accept USB debugging, and click **Scan Quest**. Filter the installed third-party package list and select a game.
 2. Choose a library title, resolution, compatibility options, and optionally the matching Steam store App ID for official artwork. Click **Back up Quest game and convert**. Leave Quest connected until conversion completes. The app copies the APK, OBB expansion files, and accessible external saves; originals remain untouched.

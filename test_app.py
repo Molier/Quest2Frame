@@ -2,6 +2,9 @@
 import unittest
 from unittest.mock import patch
 import tkinter as tk
+import tempfile
+import json
+from pathlib import Path
 from app import Wizard
 
 class ArtworkUITests(unittest.TestCase):
@@ -39,3 +42,20 @@ class ArtworkUITests(unittest.TestCase):
         with patch('app.artwork_candidates',side_effect=search):self.app.search_artwork()
         self.assertEqual(self.app.art_candidates,[])
         self.assertEqual(self.app.vars['steam_id'].get(),'')
+
+    def test_batch_settings_and_queue_reload(self):
+        from batch import BatchWindow
+        with tempfile.TemporaryDirectory() as tmp, patch('batch.ROOT',Path(tmp)):
+            batch=BatchWindow(self.app,['com.test.one','com.test.two'],'quest')
+            batch.tree.selection_set('0');batch.tree.focus('0');batch.selected()
+            batch.values['scale'].set('75');batch.values['steam_id'].set('123');batch.save_editor()
+            batch.tree.selection_set('1');batch.tree.focus('1');batch.selected()
+            self.assertEqual(batch.values['scale'].get(),'100.0')
+            batch.values['scale'].set('125');batch.save_editor()
+            path=batch.path;batch.close()
+            saved=json.loads(path.read_text())
+            self.assertNotIn('password',saved)
+            reopened=BatchWindow(self.app,path=path)
+            self.assertEqual([i['options']['scale'] for i in reopened.items],[75,125])
+            self.assertEqual(reopened.items[0]['options']['steam_id'],'123')
+            reopened.close()

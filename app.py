@@ -72,8 +72,12 @@ class Wizard(tk.Tk):
         ttk.Button(page,text='Scan Quest and list installed packages',command=self.scan).pack(anchor='w',pady=8)
         entry=ttk.Entry(page,textvariable=self.vars['filter']);entry.pack(fill='x')
         self.vars['filter'].trace_add('write',lambda *_:self.filter_packages())
-        self.listbox=tk.Listbox(page,height=8,exportselection=False);self.listbox.pack(fill='both',expand=True,pady=8)
-        ttk.Button(page,text='Use selected game →',command=self.select_game).pack(anchor='w')
+        self.listbox=tk.Listbox(page,height=8,exportselection=False,selectmode='extended');self.listbox.pack(fill='both',expand=True,pady=8)
+        ttk.Label(page,text='Ctrl-click or Shift-click to select multiple games. Filtering clears selection.').pack(anchor='w')
+        controls=ttk.Frame(page);controls.pack(fill='x')
+        ttk.Button(controls,text='Use selected game(s) →',command=self.select_game).pack(side='left')
+        ttk.Button(controls,text='Select all visible',command=lambda:self.listbox.selection_set(0,'end')).pack(side='left',padx=8)
+        ttk.Button(controls,text='Open batch / saved games…',command=self.open_batch).pack(side='left')
 
     def convert_page(self):
         page=self.pages[2]
@@ -162,12 +166,27 @@ class Wizard(tk.Tk):
         if self.busy:return
         indexes=self.listbox.curselection()
         if not indexes: messagebox.showinfo('Select a game','Choose an installed package first.');return
+        if len(indexes)>1:
+            self.show_batch([self.listbox.get(i) for i in indexes]);return
         self.package=self.listbox.get(indexes[0]);self.selected.set(self.package)
         self.vars['title'].set('Tetris Effect: Connected (Quest)' if self.package=='com.enhanceexperience.tetriseffect' else '')
         self.vars['steam_id'].set('')
         self.art_candidates=[];self.art_matches.configure(values=[]);self.art_matches.set('No artwork selected')
         self.tabs.select(2)
         if self.auto_art.get():self.search_artwork(query=self.vars['title'].get() or suggested_title(self.package))
+
+    def show_batch(self,packages=(),path=None):
+        if self.busy:return
+        if getattr(self,'batch_window',None) and self.batch_window.winfo_exists():
+            self.batch_window.lift();return
+        from batch import BatchWindow
+        try:self.batch_window=BatchWindow(self,packages,self.serial,path)
+        except Exception as exc:messagebox.showerror('Batch queue',str(exc))
+
+    def open_batch(self):
+        if self.busy:return
+        path=filedialog.askopenfilename(title='Open saved batch (Cancel to create an empty queue)',initialdir=ROOT/'games/batches',filetypes=[('Batch queue','*.json')])
+        self.show_batch(path=path or None)
 
     def search_artwork(self, query=None):
         if self.busy:return

@@ -133,6 +133,18 @@ Open the new entry in Frame's Steam library. The first launch initializes its Le
 
 ## Change settings or resume later
 
+### Multiple games / batch queue
+
+1. On **Select Quest game**, Ctrl-click or Shift-click multiple packages (or use **Select all visible**), then **Use selected game(s)**. Changing the filter clears the selection.
+2. In the batch window, select each row to edit its title, resolution, controller/foveation options, and artwork App ID. Click **Save game settings** before switching rows. Blank titles use the APK title. New games inherit the main window's resolution/compatibility settings, but never another game's title or artwork ID.
+3. Select the games to process and click **Back up & convert selected**. Keep the original Quest attached for the entire batch. Games run sequentially; failures are recorded individually and remaining games continue.
+4. If automatic artwork search is enabled on the main Convert tab, candidates are saved after each conversion. Select each row to review its candidates, choose the correct edition, and save. You can also enter a title and use **Find artwork by title** manually.
+5. Switch the USB connection to Frame, select ready rows, and click **Install selected ready games**. Each game keeps its own settings/artwork. With Steam integration enabled, Steam currently restarts **once per game**; finish active games first.
+
+Queues are automatically saved under `games/batches/` without SSH credentials. Use **Open batch / saved games** to reopen a queue after restarting the app. Cancel that file picker to create an empty queue, then use **Add saved conversions** to select existing `game.json` files. Duplicate packages are skipped.
+
+Retries reuse completed backups/builds and skip already installed rows. Failed installs can be selected and retried; if a shortcut failed after file installation, the retry reinstalls the saved build. Interrupted jobs may need retrying. Select a failed row to see its error; the main activity log contains details. Wait for the active job to finish before closing either window.
+
 Use **Open a previously converted game** and select `games/<package>/build-.../game.json`.
 
 - Change resolution/controller options on step 2, then select **Apply resolution / compatibility settings only** on step 3. Restart the game afterward. With a verified host key, this needs SSH but not USB or a rebuild.
