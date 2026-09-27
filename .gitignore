@@ -1,0 +1,33 @@
+# Private game files and downloaded third-party distributions
+/games/
+/tools/
+/tetris-effect-quest-backup/
+/tetris-effect-frame/
+
+# Built artifacts, artwork, local device identities, and logs
+*.apk
+*.obb
+*.exe
+*.dll
+*.so
+*.jar
+*.zip
+*.keystore
+*.jks
+*.pem
+*.key
+*.log
+*.pyc
+__pycache__/
+.venv/
+build/
+dist/
+*.spec
+.env
+.env.*
+/quest-frame-app/known_hosts
+/quest-frame-app/settings.json
+/quest-frame-app/artwork-test/
+/quest-frame-app/ui-check.png
+/quest-frame-app/VERIFICATION.md
+/quest-frame-app/native/include/
