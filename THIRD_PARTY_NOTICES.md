@@ -36,6 +36,7 @@ The source app lets users install and replace Paramiko normally. A frozen execut
 ## External tools and device-side software (not redistributed)
 
 - Eclipse Temurin/OpenJDK 21: local distribution carries GPLv2 with Classpath Exception and additional component notices under its `legal/` directory. Retain those if redistributing the runtime.
+- [Eclipse Compiler for Java (ECJ) 3.40.0](https://central.sonatype.com/artifact/org.eclipse.jdt/ecj/3.40.0): EPL-2.0. Downloaded from Maven Central only when `javac` is unavailable, to compile the original GPL-3.0-only `native/QuestAppLabels.java` helper. Compiler binaries are cached under ignored `tools/` and are not redistributed. Pinned SHA-256: `05cc22a24e7982970f63a405fc6c820bc80b806f27f3c5a6236fc475f8f7152b`. The compiler's license does not replace the helper source's license.
 - Android SDK/NDK, build-tools and platform-tools: separately installed tools with component-specific notices and SDK terms. Do not apply this repository's license to their binaries.
 - Valve Lepton: device-installed README states its compatibility tool is MIT and its Android root filesystem includes GPL-3.0 components. The original Valve shell sources copied locally for inspection are excluded under `tools/`; this repository does not redistribute Lepton or its Android images.
 - Frida: used only for earlier local diagnostics; neither its server, scripts, nor packages are included or required by this source app.

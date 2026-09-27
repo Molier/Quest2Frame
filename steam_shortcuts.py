@@ -41,6 +41,17 @@ def encode(obj):
 def app_id(exe, title):
     return zlib.crc32((exe + title).encode('utf-8')) | 0x80000000
 
+def remove(data, exe, ident):
+    """Remove only the exact managed launcher, rejecting ID collisions."""
+    root=decode(data) if data else {'shortcuts':{}}
+    shortcuts=root.get('shortcuts',{})
+    for key,value in list(shortcuts.items()):
+        if value.get('appid')==ident or value.get('Exe')==exe:
+            if value.get('appid')!=ident or value.get('Exe')!=exe:
+                raise ValueError('Steam shortcut identity mismatch; nothing removed')
+            del shortcuts[key]
+    return encode(root)
+
 def upsert(data, exe, title, directory, icon=''):
     root = decode(data) if data else {'shortcuts': {}}
     shortcuts = root.setdefault('shortcuts', {})
