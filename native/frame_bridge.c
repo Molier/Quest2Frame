@@ -14,6 +14,10 @@ static PFN_xrGetInstanceProcAddr original;
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 static XrInstance current;
 static float scale = 1.0f;
+static float refresh_rate = 0.0f;
+static int refresh_enabled;
+/* Capability marker also checked by the Windows installer. */
+__attribute__((used)) static const char refresh_capability[] = "Q2F_REFRESH_RATE_V1";
 static int foveation_fix = 1, controller_fix = 1;
 
 static void settings(const char *path) {
@@ -22,6 +26,7 @@ static void settings(const char *path) {
     char line[256]; float value;
     while (fgets(line, sizeof(line), f)) {
         if (sscanf(line, "scale=%f", &value) == 1 && value >= .5f && value <= 2.f) scale = value;
+        if (sscanf(line, "refresh_rate=%f", &value) == 1 && (value == 0 || value == 72 || value == 80 || value == 90 || value == 120 || value == 144)) refresh_rate = value;
         if (sscanf(line, "foveation_fix=%f", &value) == 1) foveation_fix = value != 0;
         if (sscanf(line, "controller_fix=%f", &value) == 1) controller_fix = value != 0;
     }
@@ -65,16 +70,64 @@ XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreateInfo *info
         if (!strcmp(info->enabledExtensionNames[i], "XR_KHR_android_create_instance")) enabled = 1;
     XrInstanceCreateInfo fixed = *info;
     const char **names = NULL;
-    if (has && !enabled) {
-        names = calloc(info->enabledExtensionCount + 1, sizeof(*names));
+    int refresh_present = 0, refresh_supported = 0;
+    for (uint32_t i=0; i<info->enabledExtensionCount; ++i)
+        if (!strcmp(info->enabledExtensionNames[i], XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME)) refresh_present = 1;
+    PFN_xrEnumerateInstanceExtensionProperties enumerate = (PFN_xrEnumerateInstanceExtensionProperties)resolve(XR_NULL_HANDLE, "xrEnumerateInstanceExtensionProperties");
+    uint32_t count = 0;
+    if (enumerate && XR_SUCCEEDED(enumerate(NULL, 0, &count, NULL)) && count) {
+        XrExtensionProperties *props = calloc(count, sizeof(*props));
+        if (props) {
+            uint32_t capacity = count;
+            for (uint32_t i=0; i<count; ++i) props[i].type = XR_TYPE_EXTENSION_PROPERTIES;
+            if (XR_SUCCEEDED(enumerate(NULL, capacity, &count, props)))
+                for (uint32_t i=0; i<count && i<capacity; ++i)
+                    if (!strcmp(props[i].extensionName, XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME)) refresh_supported = 1;
+            free(props);
+        }
+    }
+    if ((has && !enabled) || (refresh_supported && !refresh_present)) {
+        names = calloc(info->enabledExtensionCount + 2, sizeof(*names));
         if (!names) return XR_ERROR_OUT_OF_MEMORY;
         for (uint32_t i=0; i<info->enabledExtensionCount; ++i) names[i] = info->enabledExtensionNames[i];
-        names[info->enabledExtensionCount] = "XR_KHR_android_create_instance";
-        fixed.enabledExtensionNames = names; fixed.enabledExtensionCount++;
+        if (has && !enabled) names[fixed.enabledExtensionCount++] = "XR_KHR_android_create_instance";
+        if (refresh_supported && !refresh_present) names[fixed.enabledExtensionCount++] = XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME;
+        fixed.enabledExtensionNames = names;
     }
     XrResult result = fn(&fixed, instance); free(names);
-    if (XR_SUCCEEDED(result)) current = *instance;
+    if (XR_SUCCEEDED(result)) { current = *instance; refresh_enabled = refresh_present || refresh_supported; }
     return result;
+}
+static int supports_refresh(XrSession session) {
+    if (!refresh_enabled || !refresh_rate) return 0;
+    PFN_xrEnumerateDisplayRefreshRatesFB fn = (PFN_xrEnumerateDisplayRefreshRatesFB)resolve(current, "xrEnumerateDisplayRefreshRatesFB");
+    uint32_t count = 0;
+    if (!fn || XR_FAILED(fn(session, 0, &count, NULL)) || !count) return 0;
+    float *rates = calloc(count, sizeof(*rates));
+    if (!rates) return 0;
+    uint32_t capacity = count; int supported = 0;
+    if (XR_SUCCEEDED(fn(session, capacity, &count, rates)))
+        for (uint32_t i=0; i<count && i<capacity; ++i)
+            if (rates[i] == refresh_rate) supported = 1;
+    free(rates); return supported;
+}
+XRAPI_ATTR XrResult XRAPI_CALL xrBeginSession(XrSession session, const XrSessionBeginInfo *info) {
+    PFN_xrBeginSession fn = (PFN_xrBeginSession)resolve(current, "xrBeginSession");
+    if (!fn) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    XrResult result = fn(session, info);
+    if (XR_SUCCEEDED(result) && refresh_rate) {
+        PFN_xrRequestDisplayRefreshRateFB request = (PFN_xrRequestDisplayRefreshRateFB)resolve(current, "xrRequestDisplayRefreshRateFB");
+        if (supports_refresh(session) && request) {
+            XrResult requested = request(session, refresh_rate);
+            __android_log_print(ANDROID_LOG_INFO, "FrameBridge", "refresh rate request=%.0f Hz result=%d (runtime decides)", refresh_rate, requested);
+        } else __android_log_print(ANDROID_LOG_INFO, "FrameBridge", "refresh rate %.0f Hz unavailable; keeping runtime default", refresh_rate);
+    }
+    return result;
+}
+XRAPI_ATTR XrResult XRAPI_CALL xrRequestDisplayRefreshRateFB(XrSession session, float rate) {
+    PFN_xrRequestDisplayRefreshRateFB fn = (PFN_xrRequestDisplayRefreshRateFB)resolve(current, "xrRequestDisplayRefreshRateFB");
+    if (!fn) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    return fn(session, supports_refresh(session) ? refresh_rate : rate);
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateViewConfigurationViews(XrInstance instance, XrSystemId system, XrViewConfigurationType type, uint32_t capacity, uint32_t *count, XrViewConfigurationView *views) {
     PFN_xrEnumerateViewConfigurationViews fn = (PFN_xrEnumerateViewConfigurationViews)resolve(instance, "xrEnumerateViewConfigurationViews");
@@ -154,6 +207,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance instance, const 
     if (!name || !function) return XR_ERROR_VALIDATION_FAILURE;
 #define HOOK(n) if (!strcmp(name, #n)) { *function=(PFN_xrVoidFunction)n; return XR_SUCCESS; }
     HOOK(xrCreateInstance) HOOK(xrEnumerateViewConfigurationViews)
+    HOOK(xrBeginSession)
+    if (refresh_enabled) { HOOK(xrRequestDisplayRefreshRateFB) }
     HOOK(xrCreateSwapchain) HOOK(xrLocateHandJointsEXT)
     HOOK(xrGetCurrentInteractionProfile) HOOK(xrEnumerateInstanceExtensionProperties)
     return original(instance, name, function);

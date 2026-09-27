@@ -9,7 +9,7 @@ For multiple games, Ctrl/Shift-select packages and choose **Use selected game(s)
 0. Enter your Frame SSH host (default `frame`), port, username (`steamos`), and password. Test the connection. Only host/port/username are saved; the password stays in memory. On first connection, attach Frame over USB so the app can verify its SSH host key. Unknown or changed keys are never silently accepted.
 1. Plug in Quest, unlock it, accept USB debugging, and click **Scan Quest**. Filter the installed third-party package list and select a game.
 2. Choose a library title, resolution, compatibility options, and optionally the matching Steam store App ID for official artwork. Click **Back up Quest game and convert**. Leave Quest connected until conversion completes. The app copies the APK, OBB expansion files, and accessible external saves; originals remain untouched.
-3. When prompted, unplug Quest and connect Frame. Click **Install on Frame**. Files transfer over USB ADB, are checksum-verified, and get a dedicated Lepton installation. SSH configures the launcher and optional Steam VR shortcut. Steam briefly closes and restarts to safely load the library changes.
+3. Keep Frame awake on the same network and leave **Install wirelessly over Wi-Fi (SSH/SFTP)** checked. Quest can stay plugged into your PC. For USB transfers instead, uncheck Wi-Fi and connect Frame. Click **Install on Frame**. APK/expansion files are checksum-verified and get a dedicated Lepton installation. SSH configures the launcher and optional Steam VR shortcut. Steam briefly closes and restarts to safely load the library changes.
 
 The first Steam launch lets Lepton install/bake the APK into its dedicated Android container. Subsequent launches do not need this PC or either USB connection.
 
@@ -24,6 +24,10 @@ Open an existing `games/<package>/build-.../game.json`, change the scale on step
 The Frame adapter repairs the missing Android OpenXR instance extension. Optional physical-controller compatibility suppresses synthetic hand input and presents relevant controller profiles as Touch; disable it for games that need hand tracking. The foveation option disables the unsupported Quest foveation path. These are the Tetris-derived fixes, not a guarantee for every game.
 
 ## Files, safety, and limitations
+
+**Headset Hz** in the conversion and batch settings requests a per-game display refresh rate (Default, 72, 80, 90, 120, or 144). It is not an FPS cap. Unsupported modes keep the runtime's choice; even supported requests are subject to runtime policy. Default preserves existing behavior. Older converted APKs require reconversion with the new adapter before selecting a rate; retain Default for specially patched games until their patches can be reapplied. New-adapter games can use **Apply resolution / refresh rate / compatibility settings**, then restart. No installed games are automatically rebuilt or changed.
+
+To remove an installation, use **Manage / uninstall Frame games** on the Install tab. Refresh, select a managed game, and confirm. Save/Lepton-data preservation is enabled by default; turning it off permanently deletes that game's data too. Steam restarts and its shortcuts file is backed up. See [uninstall instructions](README.md#uninstall-a-quest2frame-game) for retained recovery folders and limitations.
 
 Single-game and batch install windows offer **Refresh storage** and an **Install location** dropdown. SD/removable storage is discovered from mounted devices and identified by filesystem UUID, not its label. Supported destinations are writable ext4/btrfs without `noexec`. Game files and per-game Lepton data go to the chosen drive; the stable Steam launcher and artwork stay internal. Existing games cannot silently move to another drive. See [installation instructions](README.md#3-install-and-play-on-frame) for details. No formatting or automatic mounting is performed.
 

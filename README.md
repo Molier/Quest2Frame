@@ -111,11 +111,17 @@ After the test succeeds, disconnect Frame and connect Quest to the PC.
 
 ### 1. Select a Quest game
 
-Unlock Quest and authorize debugging if prompted. Click **Scan Quest and list installed packages**, filter the list, select a package, and click **Use selected game**.
+Unlock Quest and authorize debugging if prompted. Click **Scan Quest and list installed apps**, filter by app name or package ID, select games, and click **Use selected game(s)**. The app reads display names from Quest's package manager with a temporary shell helper (no helper app is installed), and uses those names for titles and artwork searches. Package IDs remain visible to distinguish similarly named apps. If name lookup is unavailable, IDs are shown as a fallback.
+
+Name lookup requires an installed Android SDK platform (`platforms/*/android.jar`). If the local Java runtime lacks `javac`, the app downloads the pinned, SHA-256-verified Eclipse Java compiler 3.40.0 from Maven Central on first scan. It caches the compiler and generated helper under ignored `tools/`; subsequent scans do not require downloading them again.
 
 ### 2. Back up and convert
 
 Choose a library title and resolution scale (50–200%; start at 100%). Leave physical-controller compatibility enabled for controller games; disable it for hand-tracking games. The foveation option disables an unsupported Quest rendering path.
+
+**Headset Hz** sets a per-game display refresh-rate preference: **Default**, **72**, **80**, **90**, **120**, or **144**. Default leaves the game's/runtime's choice unchanged. These are candidate values, not a guarantee that every mode is supported. The adapter enables `XR_FB_display_refresh_rate` only when advertised, checks the runtime's supported rates, and requests the selected mode when the VR session begins. Unsupported modes leave the runtime's choice alone; requests may also be declined by the runtime. This is not a game FPS cap or a guarantee of rendering performance. Runtime decisions are logged under `FrameBridge` in Android logs.
+
+The same option is available in each batch game's settings. New conversions include refresh-rate support; older APKs must be reconverted first, and the app rejects non-default refresh settings for them. Reconverting a specially patched game also requires reapplying its game-specific patches—keep Default for your existing working builds until then. For builds containing the new adapter, use **Apply resolution / refresh rate / compatibility settings** and restart the game; no further reconversion is needed. See the [OpenXR refresh-rate request specification](https://registry.khronos.org/OpenXR/specs/1.1/man/html/xrRequestDisplayRefreshRateFB.html).
 
 With **Search Steam automatically** enabled, selecting a Quest package searches Steam for artwork candidates using its title or a package-name hint. Choose the correct game and edition from the candidate dropdown to fill the **Steam App ID**. Suggestions are ranked by title similarity, not guaranteed compatibility; no candidate is silently accepted. Edit the library title and click **Find artwork** to refine the search. If no ID has been selected, the app searches again using the APK's actual title after conversion.
 
@@ -123,9 +129,11 @@ You can still enter an App ID manually (the number after `/app/` in a Steam stor
 
 Click **Back up Quest game and convert**. Leave Quest connected until conversion completes. The app copies the original APK, expansion files, and accessible external saves, runs OVR Port, applies the adapter, aligns/signs the APK, and verifies its signature. Original Quest files are not modified.
 
+The progress bar shows the current stage, not an estimated overall completion percentage. Wi-Fi uploads report bytes and percentage per file; USB copies show percentages when ADB emits them. Conversion identifies each stage and reports APK repacking progress. Patching, signing, checksums, and other stages without a measurable percentage show an animated bar. The batch window also shows the current game number and the same live progress. A file reaching 100% does not mean installation is finished: verification and Steam setup still follow.
+
 ### 3. Install and play on Frame
 
-Disconnect Quest, connect **Frame to the PC**, and keep it awake with Wi-Fi enabled. Choose whether to add the game to Steam, then click **Install on Frame**.
+Keep Frame awake on the same network as the PC for wireless installation, or connect it to the PC for USB installation. Choose the transfer mode and whether to add the game to Steam, then click **Install on Frame**.
 
 Before installing, use **Refresh storage** and choose **Internal storage** or a detected **SD card / removable storage** destination. Each entry shows available space; no drive label is hard-coded. The card must already be mounted, writable, and formatted as ext4 or btrfs with execution allowed. The app does not format, mount, or change permissions on storage. Unsupported/read-only/noexec filesystems are omitted.
 
@@ -133,7 +141,9 @@ On an SD install, APKs, expansion files, external saves, and per-game Lepton dat
 
 **Existing games are not automatically moved between drives.** Choose their current destination when updating. Switching an existing install to another drive is refused to avoid splitting saves or overwriting progress. An SD card must be mounted before launching a game. Reformatting changes its UUID and is not equivalent to renaming it.
 
-Files transfer over USB ADB; SSH configures the launcher and optional Steam shortcut/artwork. Adding the shortcut briefly closes and restarts Steam, so finish any active game first. Wait for completion before disconnecting USB.
+**Wireless installation (default):** leave **Install wirelessly over Wi-Fi (SSH/SFTP)** checked. Keep Frame awake on the same network as the PC, enter its SSH credentials in step 0, and leave Quest connected to the PC if desired. After the first USB-verified SSH connection, Frame needs no USB cable for installs. Files transfer through authenticated SSH/SFTP into each game's dedicated Lepton installation, not into Lepton Development. No `adb connect`, open network ADB port, or running Lepton Development session is required. APK/OBB checksum verification, save preservation, internal/SD storage selection, and artwork work in both modes.
+
+**USB installation:** uncheck the wireless option and connect Frame's native USB ADB interface. SSH still configures the launcher and optional Steam shortcut/artwork. Adding the shortcut briefly closes and restarts Steam in either mode, so finish any active game first. Keep the chosen connection active until installation completes. A failed Wi-Fi transfer reports an error; it does not silently switch to USB.
 
 Open the new entry in Frame's Steam library. The first launch initializes its Lepton container and may take longer. Subsequent play does not require the PC.
 
@@ -145,7 +155,7 @@ Open the new entry in Frame's Steam library. The first launch initializes its Le
 2. In the batch window, select each row to edit its title, resolution, controller/foveation options, and artwork App ID. Click **Save game settings** before switching rows. Blank titles use the APK title. New games inherit the main window's resolution/compatibility settings, but never another game's title or artwork ID.
 3. Select the games to process and click **Back up & convert selected**. Keep the original Quest attached for the entire batch. Games run sequentially; failures are recorded individually and remaining games continue.
 4. If automatic artwork search is enabled on the main Convert tab, candidates are saved after each conversion. Select each row to review its candidates, choose the correct edition, and save. You can also enter a title and use **Find artwork by title** manually.
-5. Switch the USB connection to Frame, select ready rows, and click **Install selected ready games**. Each game keeps its own settings/artwork. With Steam integration enabled, Steam currently restarts **once per game**; finish active games first.
+5. Choose wireless installation, or uncheck it and switch the USB connection to Frame. Select ready rows and click **Install selected ready games**. Each game keeps its own settings/artwork. With Steam integration enabled, Steam currently restarts **once per game**; finish active games first.
 
 The batch window has its own **Install location** selector and **Refresh storage** button. Its selected destination applies to that installation run. To split a batch across internal storage and SD, install one subset, change the destination, then install the remaining subset. Storage selection is not restored from queue files; refresh and select the intended destination after reopening a queue.
 
@@ -157,11 +167,23 @@ Use **Open a previously converted game** and select `games/<package>/build-.../g
 
 - Change resolution/controller options on step 2, then select **Apply resolution / compatibility settings only** on step 3. Restart the game afterward. With a verified host key, this needs SSH but not USB or a rebuild.
 - Select **Add / repair Steam shortcut only** to retry library integration.
-- Reconnect Frame over USB and select **Install on Frame** to reinstall the saved build.
+- Select Wi-Fi or connect Frame over USB, then select **Install on Frame** to reinstall the saved build.
 
 Back up `games/` and `tools/ovrport-workspace/signatures/`. Existing external Frame saves are not overwritten with older Quest saves; app updates retain snapshots of replaced app/baked data. See [GUIDE.md](GUIDE.md) for details.
 
 ## Troubleshooting
+
+### Uninstall a Quest2Frame game
+
+On **Install on Frame**, open **Manage / uninstall Frame games**, then **Refresh installed games**. This uses the SSH credentials from Frame setup; USB is only needed for initial SSH verification. It detects managed internal and SD installations from deployment records and refuses unknown/unsafe paths. Insert and mount an SD card before uninstalling its games.
+
+Select one game and click **Uninstall selected game**. Review the package and destination in the confirmation. Close active games first: uninstalling removes the selected Steam shortcut and restarts Steam. Other game installations and shortcuts are preserved.
+
+**Preserve saves / Lepton data** is on by default. It retains the selected game's `lepton-data` and previous baked-data snapshots under a `.quest2frame-saves-<package>-<unique ID>` recovery folder beside the former game directory, on the same drive. The exact path is displayed afterward. This can retain substantial data, not just small save files; restoration is manual. Uncheck this option only if you also want to permanently delete that game's saves and baked data.
+
+Uninstall removes game APK/OBB files, prior app copies, shaders, and the managed launcher directory. Quest originals, PC backups/builds, shared Steam/Lepton runtimes, and unrelated games are not deleted. Steam's cached grid artwork and timestamped shortcut backups remain. Local batch queues/build manifests are not rewritten; a fresh queue can reinstall the saved build later.
+
+The Steam shortcuts file is backed up before removal. Interrupted cleanup may leave a `.quest2frame-uninstall-...` directory; the error reports recovery paths. Do not delete these blindly. Full uninstall testing uses temporary fixtures; installed-game discovery has been checked on Frame without removing real games.
 
 | Symptom | What to check |
 | --- | --- |
