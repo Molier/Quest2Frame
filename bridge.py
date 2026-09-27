@@ -20,7 +20,7 @@ import uuid
 import paramiko
 from steam_shortcuts import upsert, app_id, remove as remove_shortcut
 from storage import PROBE, select_storage, card_launcher
-from keep_awake import FrameAwake
+from headset_profile import headset_value, patch_runtime, patch_unreal_smali
 
 APP = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 ROOT = APP
@@ -81,6 +81,19 @@ def settings_text(scale=100, controllers=True, foveation=True, refresh_rate=0):
     if not 50 <= float(scale) <= 200: raise ValueError('Resolution must be 50–200%')
     return f'scale={float(scale)/100:.3f}\ncontroller_fix={int(controllers)}\nfoveation_fix={int(foveation)}\nrefresh_rate={refresh_value(refresh_rate)}\n'
 
+def rect_fix_value(game):
+    return bool(game.get('rect_fix', game.get('compatibility_fix') == 'swapchain-rectangle-rounding'))
+
+def check_rect_build(game, selected=None):
+    built = bool(game.get('built_rect_fix', game.get('compatibility_fix') == 'swapchain-rectangle-rounding'))
+    if (rect_fix_value(game) if selected is None else bool(selected)) != built:
+        raise ValueError('Black-screen fix changed. Use Rebuild APK only before installing or applying settings.')
+
+def check_headset_build(game, headset=None):
+    selected = headset_value(game.get('headset', 'Default') if headset is None else headset)
+    if selected != game.get('built_headset', 'Default'):
+        raise ValueError('Reported headset changed. Use Rebuild APK only before installing or applying settings.')
+
 def digest(path):
     with open(path, 'rb') as stream: return hashlib.file_digest(stream, 'sha256').hexdigest()
 
@@ -99,7 +112,6 @@ class Bridge:
         self.progress_callback = progress or (lambda stage, percent: None)
         self.progress_stage = ''
         self.progress_prefix = ''
-        self.awake_guard = None
         self.adb = shutil.which('adb') or str(Path(os.environ.get('LOCALAPPDATA', '')) / 'Android/Sdk/platform-tools/adb.exe')
 
     def progress(self, stage, percent=None):
@@ -116,7 +128,7 @@ class Bridge:
             if str(args[0]) == str(self.adb) and any(str(a) in ('push','pull') for a in args):
                 match = re.search(r'\[\s*(\d+(?:\.\d+)?)%', line)
                 if match: self.progress(self.progress_stage, min(100, float(match[1])))
-            if clean and clean != previous: self.log(clean)
+            if clean and clean != previous and not clean.startswith('Q2F_ICON='): self.log(clean)
             previous = clean
         p.wait(); output = ''.join(lines)
         if check and p.returncode: raise RuntimeError(f'Command failed ({Path(str(args[0])).name}):\n{output[-2500:]}')
@@ -173,7 +185,7 @@ class Bridge:
         return dex
 
     def installed_apps(self, serial):
-        packages=self.packages(serial);labels={}
+        packages=self.packages(serial);labels={};icons={}
         if not packages:return []
         remote='/data/local/tmp/q2f-labels-'+uuid.uuid4().hex+'.dex'
         try:
@@ -183,6 +195,14 @@ class Bridge:
                 group=[valid_package(p) for p in packages[offset:offset+50]]
                 output=self.shell(serial,'env','CLASSPATH='+remote,'app_process','/system/bin','QuestAppLabels',*group)
                 for line in output.splitlines():
+                    if line.startswith('Q2F_ICON='):
+                        try:
+                            record=json.loads(line[len('Q2F_ICON='):])
+                            if isinstance(record,dict) and record.get('package') in group and isinstance(record.get('icon'),str) and len(record['icon'])<100000:
+                                data=base64.b64decode(record['icon'],validate=True)
+                                if data.startswith(b'\x89PNG\r\n\x1a\n') and len(data)>=24 and 0<int.from_bytes(data[16:20],'big')<=96 and 0<int.from_bytes(data[20:24],'big')<=96:
+                                    icons[record['package']]=record['icon']
+                        except (ValueError,TypeError):pass
                     if line.startswith('Q2F_LABELS='):
                         found=json.loads(line[len('Q2F_LABELS='):])
                         labels.update({p:n for p,n in found.items() if p in group and isinstance(n,str) and n.strip()})
@@ -191,7 +211,7 @@ class Bridge:
         finally:
             try:self.shell(serial,'rm','-f',remote,check=False)
             except (OSError,RuntimeError):pass
-        return sorted([dict(package=p,title=labels.get(p,p)) for p in packages],key=lambda a:(a['title'].casefold(),a['package']))
+        return sorted([dict(package=p,title=labels.get(p,p),**({'icon':icons[p]} if p in icons else {})) for p in packages],key=lambda a:(a['title'].casefold(),a['package']))
 
     def backup(self, serial, package):
         valid_package(package)
@@ -231,9 +251,10 @@ class Bridge:
         clangs = sorted(sdk.glob('ndk/*/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe'), reverse=True)
         return java, jar, pick('build-tools/*/aapt.exe').parent, clangs[0] if clangs else None
 
-    def convert(self, backup, title, scale=100, controllers=True, foveation=True, steam_id='', refresh_rate=0):
+    def convert(self, backup, title, scale=100, controllers=True, foveation=True, steam_id='', refresh_rate=0, headset='Default', rect_fix=False):
         self.progress('Conversion 1/7: inspecting APK')
         refresh_rate = refresh_value(refresh_rate)
+        headset = headset_value(headset)
         backup = Path(backup)
         java, jar, build, clang = self.toolchain()
         source_apk = backup / 'base.apk'
@@ -296,9 +317,140 @@ class Bridge:
                     'foveation': foveation, 'steam_id': str(steam_id), 'ovrport': LIB_VERSION, 'refresh_rate': refresh_rate,
                     'sha256': digest(folder / 'game.apk')}
         write_json(folder / 'game.json', manifest)
+        if headset != 'Default' or rect_fix:
+            return self.rebuild_apk(folder, title, scale, controllers, foveation, steam_id, refresh_rate, headset, rect_fix)
         self.progress('Conversion complete', 100)
         self.log('Conversion complete. Wake Frame for Wi-Fi installation, or connect it by USB, then press Install.')
         return folder
+
+    def rebuild_apk(self, folder, title, scale=100, controllers=True, foveation=True,
+                    steam_id='', refresh_rate=0, headset='Default', rect_fix=None):
+        """Repack a converted APK; reuse OBBs and preserve game-specific native fixes."""
+        folder = Path(folder)
+        game = json.loads((folder/'game.json').read_text())
+        rect_fix = rect_fix_value(game) if rect_fix is None else bool(rect_fix)
+        headset = headset_value(headset)
+        config = settings_text(scale, controllers, foveation, refresh_rate)
+        if digest(folder/'game.apk') != game['sha256']:
+            raise ValueError('Source APK checksum mismatch; rebuild refused')
+        baseline = Path(game.get('identity_base_apk', folder/'game.apk'))
+        baseline_hash = game.get('identity_base_sha256', game['sha256'])
+        if digest(baseline) != baseline_hash:
+            raise ValueError('Original identity baseline changed; rebuild refused')
+        java, jar, build, _ = self.toolchain()
+        package = valid_package(game['package'])
+        output = ROOT/'games'/package/('rebuild-'+time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6])
+        output.mkdir(parents=True, exist_ok=False)
+        prefix = 'lib/arm64-v8a/'
+        self.progress('APK rebuild: inspecting existing compatibility fixes')
+        with zipfile.ZipFile(baseline) as src:
+            wrapped = prefix+'libq2f_original.so' in src.namelist()
+            if wrapped and rect_fix_value(game) and not rect_fix:
+                raise ValueError('This original build already includes the black-screen fix. Open a build from before that fix to disable it.')
+            runtime = prefix+('libq2f_original.so' if prefix+'libq2f_original.so' in src.namelist() else 'libopenxr_loader.so')
+            replacements = {runtime: patch_runtime(src.read(runtime), headset),
+                            prefix+'libframe_settings.so': config.encode()}
+            existing = src.read(prefix+'libopenxr_loader_generic.so')
+            if refresh_value(refresh_rate) and b'Q2F_REFRESH_RATE_V1' not in existing:
+                # Never silently replace a custom native fix to obtain a new capability.
+                raise ValueError('This build lacks refresh-rate support. Reconvert first; its custom adapter was not replaced.')
+            if headset == 'Quest 3':
+                for name in src.namelist():
+                    if not re.fullmatch(r'classes\d*\.dex', name): continue
+                    raw = src.read(name)
+                    if b'Quest 2' not in raw or (b'com/epicgames/ue4/GameActivity' not in raw and b'com/epicgames/unreal/GameActivity' not in raw): continue
+                    self.progress('APK rebuild: updating Unreal headset model')
+                    dex = output/name; dex.write_bytes(raw)
+                    smali = output/(name+'.smali')
+                    self.run([java, '-cp', jar, 'org.jf.baksmali.Main', 'disassemble', dex, '-o', smali])
+                    changed = False
+                    for relative in ('com/epicgames/ue4/GameActivity.smali', 'com/epicgames/unreal/GameActivity.smali'):
+                        path = smali/relative
+                        if not path.exists(): continue
+                        text = path.read_text(encoding='utf-8'); patched = patch_unreal_smali(text)
+                        if text != patched:
+                            path.write_text(patched, encoding='utf-8'); changed = True
+                    if changed:
+                        rebuilt = output/('rebuilt-'+name)
+                        self.run([java, '-cp', jar, 'org.jf.smali.Main', 'assemble', smali, '-o', rebuilt])
+                        replacements[name] = rebuilt.read_bytes()
+            self.progress('APK rebuild: repacking (OBBs untouched)', 0)
+            with zipfile.ZipFile(output/'unsigned.apk', 'w', zipfile.ZIP_DEFLATED) as dst:
+                entries = [i for i in src.infolist() if not i.filename.startswith('META-INF/')]
+                for index, item in enumerate(entries):
+                    dst.writestr(item, replacements.pop(item.filename, None) if item.filename in replacements else src.read(item.filename))
+                    self.progress('APK rebuild: repacking (OBBs untouched)', 100*(index+1)/len(entries))
+                for name, data in replacements.items(): dst.writestr(name, data)
+        self.progress('APK rebuild: aligning and signing')
+        self.run([build/'zipalign.exe', '-f', '-P', '16', '4', output/'unsigned.apk', output/'aligned.apk'])
+        key = ROOT/'tools/ovrport-workspace/signatures'/(package+'.keystore')
+        self.run([java, '-jar', build/'lib/apksigner.jar', 'sign', '--ks', key, '--ks-pass', 'pass:password', '--out', output/'game.apk', output/'aligned.apk'])
+        self.run([java, '-jar', build/'lib/apksigner.jar', 'verify', '--verbose', output/'game.apk'])
+        if rect_fix and not wrapped:
+            from build_passthrough import build as build_rect_adapter
+            self.progress('APK rebuild: adding black-screen compatibility fix')
+            fixed = output/'rect-adapter'
+            build_rect_adapter(output/'game.apk', fixed, bridge=self)
+            shutil.copy2(fixed/'game.apk', output/'game.apk')
+        game.update(title=title.strip() or game['title'], scale=float(scale), controllers=bool(controllers),
+                    foveation=bool(foveation), steam_id=str(steam_id), refresh_rate=refresh_value(refresh_rate),
+                    headset=headset, built_headset=headset, sha256=digest(output/'game.apk'),
+                    rect_fix=rect_fix, built_rect_fix=rect_fix,
+                    identity_base_apk=str(baseline.resolve()), identity_base_sha256=baseline_hash,
+                    update_source_sha256=game.get('update_source_sha256', game['sha256']))
+        write_json(output/'game.json', game)
+        if (folder/'deployment.json').exists(): shutil.copy2(folder/'deployment.json', output/'deployment.json')
+        self.progress('APK-only rebuild complete; OBBs unchanged', 100)
+        return output
+
+    def install_apk_only(self, folder, client, transport='wifi'):
+        return self._install_apk_only(folder,client,transport)
+
+    def _install_apk_only(self, folder, client, transport='wifi'):
+        """Update one existing deployment, without traversing/copying OBBs or saves."""
+        if transport not in ('usb', 'wifi'): raise ValueError('Select USB or Wi-Fi installation')
+        folder = Path(folder); game = json.loads((folder/'game.json').read_text())
+        check_headset_build(game); check_rect_build(game); check_refresh_adapter(folder, game.get('refresh_rate', 0))
+        package = valid_package(game['package'])
+        deployment = json.loads((folder/'deployment.json').read_text())
+        if deployment['package'] != package: raise ValueError('Deployment/package mismatch')
+        if digest(folder/'game.apk') != game['sha256']: raise ValueError('APK checksum mismatch')
+        if transport == 'usb':
+            if 'frame' not in self.devices(): raise ValueError('Connect Frame by USB or select Wi-Fi')
+            if self.shell('frame','cat','/etc/machine-id').strip() != self.remote(client,'cat /etc/machine-id'):
+                raise ValueError('USB Frame and SSH Frame do not match')
+        base = self.deployment_base(client, deployment)
+        anchor = deployment.get('anchor', deployment['remote'])
+        q = shlex.quote
+        # Resolve UUID again through deployment_base; never assume the SD label.
+        actual = json.loads(self.remote(client, 'cat '+q(anchor+'/deployment.json')))
+        if actual.get('package') != package or actual.get('appid') != deployment['appid'] or actual.get('storage_uuid','') != deployment.get('storage_uuid',''):
+            raise ValueError('Installed deployment changed; reopen its current build')
+        apk = base+'/lepton-app/game.apk'
+        expected = game.get('update_source_sha256', game['sha256'])
+        def preflight():
+            running = self.remote(client, 'podman ps --format "{{.Names}}"')
+            if 'lepton-steamlaunch-'+str(int(deployment['appid'])) in running.splitlines():
+                raise ValueError('Close this game on Frame before updating its APK')
+            if self.remote(client, 'sha256sum '+q(apk)).split()[0] != expected:
+                raise ValueError('Installed APK differs from this rebuild source. Refusing to overwrite other compatibility fixes.')
+        preflight()
+        stage = apk+'.staging-'+uuid.uuid4().hex
+        previous = base+'/previous-apk-'+uuid.uuid4().hex+'.apk'
+        self.progress('APK-only installation: uploading APK; OBBs and saves untouched')
+        self.transfer_file(client, folder/'game.apk', stage, transport)
+        if self.remote(client, 'sha256sum '+q(stage)).split()[0] != game['sha256']:
+            raise ValueError('APK verification failed; existing APK untouched')
+        preflight()
+        # Keep the old APK recoverable. Atomic rename exposes only a complete APK.
+        self.remote(client, 'set -e; cp -p --reflink=auto '+q(apk)+' '+q(previous)+'; chmod 644 '+q(stage)+'; mv -f '+q(stage)+' '+q(apk))
+        config = settings_text(game['scale'], game['controllers'], game['foveation'], game.get('refresh_rate',0))
+        self.put_text(client, base+'/settings.conf', config)
+        self.put_text(client, base+'/lepton-data/external/Android/data/'+package+'/files/framebridge.conf', config)
+        game.pop('update_source_sha256', None)
+        write_json(folder/'game.json', game)
+        self.progress('APK updated; OBBs and saves unchanged', 100)
+        self.log('Previous APK retained at '+previous+'. Restart the game to test the new settings.')
 
     def connect(self, host, username, password, port=22):
         """Trust an SSH key only after comparing it to the physically connected Frame."""
@@ -321,7 +473,6 @@ class Bridge:
         return client
 
     def remote(self, client, command, check=True):
-        if self.awake_guard is not None:self.awake_guard.check()
         _, out, err = client.exec_command(command, timeout=60)
         output = out.read().decode('utf-8', 'replace') + err.read().decode('utf-8', 'replace')
         code = out.channel.recv_exit_status()
@@ -407,7 +558,6 @@ class Bridge:
         return choice['mount']+'/Applications/quest-frame/'+valid_package(deployment['package'])
 
     def transfer_file(self, client, local, remote, transport):
-        if self.awake_guard is not None:self.awake_guard.check()
         stage = 'Installing: ' + Path(local).name
         self.progress(stage)
         if transport == 'usb':
@@ -416,7 +566,6 @@ class Bridge:
             self.log('Uploading over SSH: ' + Path(local).name)
             last = [0.0]
             def transferred(done, total):
-                if self.awake_guard is not None:self.awake_guard.check()
                 now = time.monotonic()
                 if done == total or now - last[0] >= .1:
                     last[0] = now
@@ -428,18 +577,14 @@ class Bridge:
         self.progress(stage, 100)
 
     def install(self, folder, client, add_steam=True, artwork_id=None, storage_id='internal', transport='usb'):
-        if transport == 'wifi':
-            self.progress('Installation: keeping Frame awake')
-            with FrameAwake(client, self.log) as guard:
-                self.awake_guard=guard
-                try:return self._install(folder,client,add_steam,artwork_id,storage_id,transport)
-                finally:self.awake_guard=None
         return self._install(folder,client,add_steam,artwork_id,storage_id,transport)
 
     def _install(self, folder, client, add_steam=True, artwork_id=None, storage_id='internal', transport='usb'):
         self.progress('Installation: checking APK, connection and storage')
         if transport not in ('usb', 'wifi'): raise ValueError('Select USB or Wi-Fi installation')
         folder = Path(folder); game = json.loads((folder / 'game.json').read_text())
+        check_headset_build(game)
+        check_rect_build(game)
         check_refresh_adapter(folder, game.get('refresh_rate', 0))
         package = valid_package(game['package']); backup = Path(game['backup'])
         obb_source = backup / 'obb'
@@ -575,9 +720,13 @@ class Bridge:
             if service: self.remote(client, 'systemctl --user start steam.service', check=False)
             else: self.remote(client, 'systemd-run --user --collect --unit=quest-frame-steam-' + str(int(time.time())) + ' /usr/bin/steam', check=False)
 
-    def update_settings(self, folder, client, scale, controllers, foveation, refresh_rate=0):
+    def update_settings(self, folder, client, scale, controllers, foveation, refresh_rate=0, headset=None, rect_fix=None):
         folder = Path(folder)
         check_refresh_adapter(folder, refresh_rate)
+        if headset is not None:
+            check_headset_build(json.loads((folder/'game.json').read_text()), headset)
+        if rect_fix is not None:
+            check_rect_build(json.loads((folder/'game.json').read_text()), rect_fix)
         deployment = json.loads((folder / 'deployment.json').read_text())
         package = valid_package(deployment['package'])
         base=self.deployment_base(client,deployment)

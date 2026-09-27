@@ -203,6 +203,41 @@ Tests with the virtual environment: `.\.venv\Scripts\python.exe -m unittest disc
 
 ## Source-only repository
 
+### Testing graphics and headset profiles without copying OBBs
+
+Open an existing `game.json` with **Open saved build**, then choose resolution,
+headset refresh rate, and **Reported headset** under **Review & convert**.
+Choose **Rebuild APK only**, then **Install APK only** on the installation page.
+The Quest does not need to be connected. Rebuild uses the existing converted APK,
+preserves its native compatibility fixes, and creates a separate signed build.
+APK-only installation requires an existing deployment; it uses that deployment's
+storage UUID/location and does not copy, replace, or remove OBBs or saves. Close
+the game first. The previous APK is retained on Frame for recovery.
+
+**Default** preserves the original identity. **Quest 2** and **Quest 3** are
+experimental, build-time overrides for the pinned OVR Port runtime's OpenXR
+system name and Meta headset-model UUID, plus OVR Port's Unreal GameActivity
+model constant. Unknown runtime binaries are rejected. These are not global
+Android device-property changes and cannot guarantee every game's device check
+will agree. No hardware capabilities, extensions, assets, or performance are
+added by selecting Quest 3. Keep the original build to revert. Rebuilds retain a
+reference to that original APK, so do not delete it while testing profiles.
+
+Resolution and refresh-rate changes can also use **Apply settings only** on
+compatible builds (restart the game); changing reported headset requires an APK
+rebuild. Refresh rate remains limited to modes supported by the runtime. An old
+custom adapter without refresh-rate support is rejected rather than overwritten.
+
+**Fix black screen (swapchain rectangles)** is an optional build setting for
+games that play audio but submit invalid eye-image rectangles, such as the
+observed Moss II and Vampire Survivors failures. It corrects only 1–2 pixel
+rounding overflows; it is not a general fix for every black screen. Enable it
+under **Review & convert** (or per-game batch settings), rebuild, then install
+the APK. This uses the existing compatibility adapter and requires the Android
+NDK. New builds can be rebuilt with the option off using their saved original
+APK. If the original APK already contains the fix, open a pre-fix build to
+remove it. Existing game data and saves are retained by APK-only installation.
+
 This repository contains our Python/C/shell source and documentation. It does **not** distribute Quest games, patched APKs, game saves, Steam artwork, signing keys, device configuration, downloaded OVR Port binaries, Android SDK/NDK, Java, Lepton, or the locally built Windows executable. `.gitignore` protects these local files without deleting them.
 
 The existing workspace is configured to run the app. A fresh clone needs the external tools described in the app guide; this is not a self-contained installer. To compile the adapter from a fresh clone, run `./build-native.ps1` with an installed Android NDK. That script fetches the two OpenXR headers from a pinned upstream revision and verifies their SHA-256 hashes.

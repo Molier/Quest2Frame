@@ -30,8 +30,7 @@ class WirelessTests(unittest.TestCase):
                     path=cmd[len('sha256sum '):].strip("'")
                     return ('bad' if corrupt else digest(uploaded[path]))+' file'
                 return ''
-            with patch('bridge.FrameAwake'), \
-                 patch.object(b,'devices',side_effect=AssertionError('Wi-Fi must not query ADB')), \
+            with patch.object(b,'devices',side_effect=AssertionError('Wi-Fi must not query ADB')), \
                  patch.object(b,'adb_run',side_effect=AssertionError('Wi-Fi must not use ADB')), \
                  patch.object(b,'remote',side_effect=remote),patch.object(b,'put_text'), \
                  patch.object(b,'storage_locations',return_value=[dict(id='internal',uuid='',mount='/home/test',free=10**12)]):

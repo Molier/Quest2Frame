@@ -5,14 +5,17 @@ from tkinter import ttk, messagebox
 class InstalledGames(tk.Toplevel):
     def __init__(self,wizard):
         super().__init__(wizard);self.wizard=wizard;self.games={}
-        self.title('Quest2Frame — installed games');self.geometry('980x500')
+        self.title('Quest2Frame · Installed games');self.geometry('1100x620');self.minsize(900,500)
         box=ttk.Frame(self,padding=18);box.pack(fill='both',expand=True)
-        ttk.Label(box,text='Manage only games installed by Quest2Frame. Uses Frame SSH; USB is not required after initial verification.').pack(anchor='w')
+        ttk.Label(box,text='On your Frame',style='Title.TLabel').pack(anchor='w')
+        ttk.Label(box,text='Manage games installed by Quest2Frame. Uses SSH; no USB required after initial verification.',style='Muted.TLabel').pack(anchor='w',pady=(5,8))
         ttk.Button(box,text='Refresh installed games',command=self.refresh).pack(anchor='w',pady=10)
-        self.tree=ttk.Treeview(box,columns=('game','location','state'),show='headings',selectmode='browse')
+        table=ttk.Frame(box);table.pack(fill='both',expand=True)
+        self.tree=ttk.Treeview(table,columns=('game','location','state'),show='headings',selectmode='browse')
         for name,width in [('game',370),('location',150),('state',350)]:
             self.tree.heading(name,text=name.title());self.tree.column(name,width=width)
-        self.tree.pack(fill='both',expand=True)
+        scrollbar=ttk.Scrollbar(table,command=self.tree.yview);scrollbar.pack(side='right',fill='y')
+        self.tree.configure(yscrollcommand=scrollbar.set);self.tree.pack(fill='both',expand=True)
         self.keep=tk.BooleanVar(value=True)
         ttk.Checkbutton(box,text='Preserve saves / Lepton data in a recovery folder (uses space; manual restore)',variable=self.keep).pack(anchor='w',pady=10)
         ttk.Button(box,text='Uninstall selected game…',command=self.uninstall).pack(anchor='w')

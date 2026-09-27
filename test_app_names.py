@@ -4,9 +4,24 @@ from pathlib import Path
 from unittest.mock import patch
 from bridge import Bridge
 import test_app
+import base64
+import json
 
 
 class NameLookupTests(unittest.TestCase):
+    def test_icon_is_returned_with_label(self):
+        data=b'\x89PNG\r\n\x1a\n'+b'\x00'*8+(48).to_bytes(4,'big')*2
+        icon=base64.b64encode(data).decode()
+        output='Q2F_ICON='+json.dumps(dict(package='com.test.game',icon=icon))+'\nQ2F_LABELS={"com.test.game":"Game"}'
+        b=Bridge(lambda _:None)
+        with patch.object(b,'packages',return_value=['com.test.game']),patch.object(b,'label_helper',return_value=Path('helper.dex')),patch.object(b,'adb_run'),patch.object(b,'shell',return_value=output):
+            self.assertEqual(b.installed_apps('quest'),[dict(package='com.test.game',title='Game',icon=icon)])
+
+    def test_bad_icon_does_not_hide_name(self):
+        b=Bridge(lambda _:None)
+        output='Q2F_ICON=[]\nQ2F_ICON={"package":"com.test.game","icon":"!bad"}\nQ2F_LABELS={"com.test.game":"Game"}'
+        with patch.object(b,'packages',return_value=['com.test.game']),patch.object(b,'label_helper',return_value=Path('helper.dex')),patch.object(b,'adb_run'),patch.object(b,'shell',return_value=output):
+            self.assertEqual(b.installed_apps('quest'),[dict(package='com.test.game',title='Game')])
     def test_names_sorted_and_unknown_package_retained(self):
         b=Bridge(lambda _:None)
         with patch.object(b,'packages',return_value=['com.z.game','com.a.game']), \
@@ -26,6 +41,14 @@ class NameLookupTests(unittest.TestCase):
 class NameUITests(unittest.TestCase):
     setUp=test_app.ArtworkUITests.setUp
     tearDown=test_app.ArtworkUITests.tearDown
+
+    def test_rows_show_name_without_package_and_have_fallback_icon(self):
+        self.app.package_list=['com.one.game']
+        self.app.package_names={'com.one.game':'Friendly Game'}
+        self.app.filter_packages()
+        row=self.app.listbox.get_children()[0]
+        self.assertEqual(self.app.listbox.item(row,'text').strip(),'Friendly Game')
+        self.assertTrue(self.app.listbox.item(row,'image'))
 
     def test_filter_and_selection_keep_real_package(self):
         self.app.auto_art.set(False)

@@ -34,11 +34,11 @@ def rename_soname(data, expected=b'libopenxr_loader.so', replacement=b'libq2f_or
     return bytes(data)
 
 
-def build(apk, output):
+def build(apk, output, bridge=None):
     apk = Path(apk).resolve()
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    bridge = Bridge()
+    bridge = bridge or Bridge()
     java, _, tools, clang = bridge.toolchain()
     if not clang:
         raise RuntimeError('Android NDK is required')
