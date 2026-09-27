@@ -13,6 +13,8 @@ The first Steam launch lets Lepton install/bake the APK into its dedicated Andro
 
 ## Resolution and compatibility
 
+Artwork search runs automatically when selecting a package and, if no artwork ID is chosen, again after conversion with the APK title. Choose a candidate from the dropdown to use its Steam App ID; verify the game and edition. Edit the title and click **Find artwork** to search again, or enter an ID manually. Automatic search can be disabled on the Convert tab. It sends only the title to Steam, and network failures do not block conversion.
+
 Resolution is 50–200% of OpenXR's recommended **width and height**, clamped to runtime limits. 150% means about 2.25× as many pixels, not 1.5×. Games that ignore OpenXR's recommended size may ignore this setting. It does not change the headset display mode.
 
 Open an existing `games/<package>/build-.../game.json`, change the scale on step 2, and use **Apply resolution / compatibility settings only** on step 3. Restart the game. No reconversion is necessary. This update uses SSH and does not need a USB connection after the SSH identity has been verified.

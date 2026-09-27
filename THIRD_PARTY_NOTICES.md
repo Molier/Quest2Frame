@@ -42,6 +42,8 @@ The source app lets users install and replace Paramiko normally. A frozen execut
 
 ## Game content, artwork, and release checklist
 
+The Windows app can query Steam's store search endpoint with a game title to suggest artwork matches. This sends titles, not game binaries or saves. Users confirm a candidate or enter an App ID manually, and can disable automatic searches. Search availability and artwork download access do not grant redistribution rights to the returned content.
+
 Games, saves, vendor SDK components embedded in games, converted APKs, and Steam CDN artwork are **not** covered by this project's GPL license. Availability through ADB or a public CDN is not permission to redistribute. Use content only where you have the necessary rights; software licensing does not settle platform terms or anti-circumvention law.
 
 Before any binary release: inventory the actual shipped files and exact versions; verify runtime/vendor redistribution terms; preserve every applicable license/notice; provide required corresponding source and build instructions; address LGPL replacement/relinking obligations; and exclude personal credentials, keys, games, saves, and artwork unless separately authorized. Until then, distribute only the reviewed source tree.

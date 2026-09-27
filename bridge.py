@@ -2,6 +2,7 @@
 """Quest backup, OVR Port conversion and per-game Lepton deployment."""
 from pathlib import Path, PurePosixPath
 import base64
+import difflib
 import hashlib
 import io
 import json
@@ -13,6 +14,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.parse
 import zipfile
 import paramiko
 from steam_shortcuts import upsert, app_id
@@ -22,6 +24,35 @@ ROOT = APP
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 LIB_VERSION = '3.4.3-23204ea'
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+
+def artwork_query(title):
+    return re.sub(r'\s*\(Quest\)\s*$', '', title, flags=re.I).strip()
+
+def suggested_title(package):
+    known = {'com.enhanceexperience.tetriseffect':'Tetris Effect: Connected',
+             'com.beatgames.beatsaber':'Beat Saber', 'com.Armature.VR4':'Resident Evil 4'}
+    if package in known: return known[package]
+    name = package.rsplit('.', 1)[-1].replace('_', ' ')
+    return re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', name).strip()
+
+def artwork_candidates(title):
+    """Return suggestions only; the user must confirm the correct Steam edition."""
+    query = artwork_query(title)[:150]
+    if not query: return []
+    url = 'https://store.steampowered.com/api/storesearch/?' + urllib.parse.urlencode(
+        {'term':query, 'l':'english', 'cc':'US'})
+    request = urllib.request.Request(url, headers={'User-Agent':'Quest2Frame/1.0'})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        payload = json.load(response)
+    def normalized(text): return re.sub(r'[^a-z0-9]', '', text.casefold())
+    candidates = []; seen = set()
+    for item in payload.get('items', [])[:30]:
+        ident = str(item.get('id', '')); name = item.get('name')
+        if not ident.isdigit() or not isinstance(name, str) or ident in seen: continue
+        seen.add(ident)
+        score = difflib.SequenceMatcher(None, normalized(query), normalized(name)).ratio()
+        candidates.append({'id':ident, 'title':name, 'score':score})
+    return sorted(candidates, key=lambda item:item['score'], reverse=True)[:10]
 
 def valid_package(value):
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+', value):

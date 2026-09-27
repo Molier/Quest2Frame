@@ -4,8 +4,29 @@ from pathlib import Path
 from unittest.mock import patch
 from bridge import Bridge, settings_text, valid_package
 from steam_shortcuts import decode, encode, upsert
+from bridge import artwork_candidates, artwork_query, suggested_title
+import io
+import json
 
 class Tests(unittest.TestCase):
+    def test_artwork_rank_and_validate(self):
+        payload={'items':[{'id':2,'name':'Example Game Deluxe DLC'},
+                          {'id':1,'name':'Example Game'}, {'id':1,'name':'Duplicate'},
+                          {'id':'bad','name':'Invalid'}, {'id':3,'name':None}]}
+        with patch('bridge.urllib.request.urlopen',return_value=io.BytesIO(json.dumps(payload).encode())) as request:
+            matches=artwork_candidates('Example Game (Quest)')
+            self.assertEqual([x['id'] for x in matches],['1','2'])
+            self.assertIn('term=Example+Game',request.call_args.args[0].full_url)
+            self.assertEqual(request.call_args.kwargs['timeout'],15)
+    def test_artwork_empty_query(self):
+        with patch('bridge.urllib.request.urlopen') as request:
+            self.assertEqual(artwork_candidates('  '),[]);request.assert_not_called()
+    def test_artwork_query_and_package_hint(self):
+        self.assertEqual(artwork_query('Tetris Effect (Quest)'),'Tetris Effect')
+        self.assertEqual(suggested_title('com.MightyCoconut.WalkaboutMiniGolf'),'Walkabout Mini Golf')
+    def test_artwork_no_results(self):
+        with patch('bridge.urllib.request.urlopen',return_value=io.BytesIO(b'{"items":[]}')):
+            self.assertEqual(artwork_candidates('Unknown'),[])
     def test_settings(self):
         self.assertIn('scale=0.750',settings_text(75))
         for value in (0,49,201,float('nan')):

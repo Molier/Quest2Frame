@@ -117,7 +117,9 @@ Unlock Quest and authorize debugging if prompted. Click **Scan Quest and list in
 
 Choose a library title and resolution scale (50–200%; start at 100%). Leave physical-controller compatibility enabled for controller games; disable it for hand-tracking games. The foveation option disables an unsupported Quest rendering path.
 
-Optionally enter the matching game's **Steam App ID** to fetch artwork. This Windows app uses the ID you provide; it does not automatically search by title. Find the ID in a Steam store URL's `/app/<number>/` portion.
+With **Search Steam automatically** enabled, selecting a Quest package searches Steam for artwork candidates using its title or a package-name hint. Choose the correct game and edition from the candidate dropdown to fill the **Steam App ID**. Suggestions are ranked by title similarity, not guaranteed compatibility; no candidate is silently accepted. Edit the library title and click **Find artwork** to refine the search. If no ID has been selected, the app searches again using the APK's actual title after conversion.
+
+You can still enter an App ID manually (the number after `/app/` in a Steam store URL), or leave it blank to skip artwork. Search failures do not prevent conversion. Searches send the game title to Steam, not APKs or saves; uncheck automatic search to disable automatic requests. The **Find artwork** button still performs a search when clicked.
 
 Click **Back up Quest game and convert**. Leave Quest connected until conversion completes. The app copies the original APK, expansion files, and accessible external saves, runs OVR Port, applies the adapter, aligns/signs the APK, and verifies its signature. Original Quest files are not modified.
 

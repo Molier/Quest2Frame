@@ -7,7 +7,7 @@ import queue
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from bridge import APP, ROOT, Bridge, write_json, settings_text
+from bridge import APP, ROOT, Bridge, write_json, settings_text, artwork_candidates, suggested_title
 
 class Wizard(tk.Tk):
     def __init__(self):
@@ -17,6 +17,7 @@ class Wizard(tk.Tk):
         self.bridge = Bridge(lambda line: self.events.put(('log', line)))
         self.vars = {k: tk.StringVar(value=v) for k, v in {'host':'frame', 'port':'22', 'username':'steamos', 'password':'', 'title':'', 'steam_id':'', 'filter':'', 'scale':'100'}.items()}
         self.controllers = tk.BooleanVar(value=True); self.foveation = tk.BooleanVar(value=True); self.add_steam = tk.BooleanVar(value=True)
+        self.auto_art = tk.BooleanVar(value=True); self.art_candidates = []
         config = APP / 'settings.json'
         if config.exists():
             try:
@@ -87,6 +88,16 @@ class Wizard(tk.Tk):
         ttk.Checkbutton(page,text='Disable unsupported Quest foveation',variable=self.foveation).grid(row=6,column=0,columnspan=2,sticky='w')
         ttk.Button(page,text='Back up Quest game and convert',command=self.convert).grid(row=7,column=0,columnspan=2,sticky='w',pady=12)
         ttk.Button(page,text='Open a previously converted game…',command=self.open_build).grid(row=8,column=0,columnspan=2,sticky='w')
+        # Make room beneath the App ID field without shrinking existing controls.
+        for widget in page.grid_slaves():
+            row = int(widget.grid_info()['row'])
+            if row >= 3: widget.grid_configure(row=row+1)
+        ttk.Button(page,text='Find artwork',command=self.search_artwork).grid(row=2,column=2,padx=(8,0))
+        self.art_matches = ttk.Combobox(page,state='readonly',width=55)
+        self.art_matches.grid(row=3,column=0,columnspan=3,sticky='ew',pady=6)
+        self.art_matches.set('Artwork candidates appear here — choose one to use its App ID')
+        self.art_matches.bind('<<ComboboxSelected>>',self.choose_artwork)
+        ttk.Checkbutton(page,text='Search Steam automatically (sends game title to Steam)',variable=self.auto_art).grid(row=10,column=0,columnspan=3,sticky='w',pady=6)
 
     def install_page(self):
         page=self.pages[3]
@@ -148,12 +159,49 @@ class Wizard(tk.Tk):
             if query in package.lower(): self.listbox.insert('end',package)
 
     def select_game(self):
+        if self.busy:return
         indexes=self.listbox.curselection()
         if not indexes: messagebox.showinfo('Select a game','Choose an installed package first.');return
         self.package=self.listbox.get(indexes[0]);self.selected.set(self.package)
         self.vars['title'].set('Tetris Effect: Connected (Quest)' if self.package=='com.enhanceexperience.tetriseffect' else '')
-        self.vars['steam_id'].set('1003590' if self.package=='com.enhanceexperience.tetriseffect' else '')
+        self.vars['steam_id'].set('')
+        self.art_candidates=[];self.art_matches.configure(values=[]);self.art_matches.set('No artwork selected')
         self.tabs.select(2)
+        if self.auto_art.get():self.search_artwork(query=self.vars['title'].get() or suggested_title(self.package))
+
+    def search_artwork(self, query=None):
+        if self.busy:return
+        query = query or self.vars['title'].get().strip()
+        if not query:
+            messagebox.showinfo('Artwork search','Enter a game title first.');return
+        title_before=self.vars['title'].get();id_before=self.vars['steam_id'].get()
+        self.art_candidates=[];self.art_matches.configure(values=[]);self.art_matches.set('Searching Steam…')
+        def work():
+            try:return artwork_candidates(query),None
+            except Exception as exc:return [],str(exc)
+        def done(result):
+            if self.vars['title'].get()!=title_before or self.vars['steam_id'].get()!=id_before:
+                self.art_matches.set('Details changed — click Find artwork to search again');return
+            matches,error=result;self.art_candidates=matches
+            self.art_matches.configure(values=[f"{m['title']} — App ID {m['id']}" for m in matches])
+            if error:
+                self.art_matches.set('Search unavailable — retry or enter an App ID manually')
+                self.status.set('Artwork search failed; conversion is still available.')
+                self.events.put(('log','Artwork search: '+error))
+            elif matches:
+                self.art_matches.set('Choose a candidate — verify the game and edition')
+                self.status.set(f'{len(matches)} artwork candidates found. Choose one or keep your manual App ID.')
+            else:
+                self.art_matches.set('No matches — edit the title and search again')
+                self.status.set('No artwork match. You can continue without artwork.')
+        self.run_job('Searching Steam for artwork candidates…',work,done)
+
+    def choose_artwork(self,event=None):
+        index=self.art_matches.current()
+        if self.busy or not 0<=index<len(self.art_candidates):return
+        candidate=self.art_candidates[index]
+        self.vars['steam_id'].set(candidate['id'])
+        self.status.set('Artwork selected: '+candidate['title'])
 
     def options(self):
         options = dict(title=self.vars['title'].get(),scale=float(self.vars['scale'].get()),controllers=self.controllers.get(),foveation=self.foveation.get(),steam_id=self.vars['steam_id'].get())
@@ -173,6 +221,10 @@ class Wizard(tk.Tk):
         self.controllers.set(game['controllers']);self.foveation.set(game['foveation'])
         self.ready.set(game['title']+' is ready. Plug in your Frame.');self.selected.set(game['package']);self.tabs.select(3)
         self.status.set('3 · Conversion ready. Switch from Quest to Frame, then Install.')
+        self.art_candidates=[];self.art_matches.configure(values=[]);self.art_matches.set('Click Find artwork to search for this game')
+        if self.auto_art.get() and not game.get('steam_id'):
+            self.tabs.select(2)
+            self.search_artwork(query=game['title'])
 
     def open_build(self):
         if self.busy:return
